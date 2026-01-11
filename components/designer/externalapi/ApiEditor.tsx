@@ -88,10 +88,16 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
 
     // Response Configuration State
     const [isTransformEnabled, setIsTransformEnabled] = useState(false);
+    // Helper for creating IDs
+    const uuid = () => Math.random().toString(36).substring(2, 9);
+
     const [responseConfigs, setResponseConfigs] = useState<StatusCodeConfig[]>([
         {
+            id: 'default_rule',
             code: '200',
-            name: '成功',
+            name: '默认规则',
+            condition: 'default',
+            isDefault: true,
             mode: 'visual',
             schema: [
                 {
@@ -102,11 +108,21 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
                     ]
                 }
             ],
-            script: `// Transform response data\nfunction transform(data) {\n  return {\n    success: true,\n    data: data.data || data,\n    timestamp: new Date().toISOString()\n  };\n}`
+            script: `// Default Encapsulation Rule
+function transform(data) {
+  return {
+    success: true,
+    data: data.data || data,
+    timestamp: new Date().toISOString()
+  };
+}`
         },
         {
+            id: uuid(),
             code: '404',
-            name: '记录不存在',
+            name: '资源未找到',
+            condition: '404', // check against status code
+            isDefault: false,
             mode: 'visual',
             schema: [
                 {
@@ -357,21 +373,47 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
             // APPLY TRANSFORMATION
             if (isTransformEnabled && rawData) {
                 try {
-                    // Find applicable config (Simple logic: use first or '200')
-                    const config = responseConfigs.find(c => c.code === '200') || responseConfigs[0];
-                    if (config.mode === 'code' && config.script) {
-                        // Safe-ish eval for demo
-                        // eslint-disable-next-line no-new-func
-                        const transformFunc = new Function('data', config.script + '\nreturn transform(data);');
-                        const transformed = transformFunc(rawData);
-                        setDebugData(transformed);
-                    } else {
-                        // For Visual mode, we would parse schema. For now, just show raw + note
-                        setDebugData({
-                            ...rawData,
-                            _note: "Visual transformation not fully implemented in demo runtime. Switch to Code mode."
-                        });
+                    // Match Logic
+                    // Priority: First matching specific rule -> Default rule
+                    let appliedConfig: StatusCodeConfig | undefined;
+
+                    for (const cfg of responseConfigs) {
+                        if (cfg.isDefault) continue; // Skip default in first pass
+
+                        // Simple condition check:
+                        // 1. Exact match with status code in standard fields
+                        const statusCode = rawData?.status?.code || rawData?.code || rawData?.status;
+                        if (String(statusCode) === cfg.condition) {
+                            appliedConfig = cfg;
+                            break;
+                        }
+
+                        // 2. TODO: eval complex expression if condition starts with specific marker
                     }
+
+                    if (!appliedConfig) {
+                        appliedConfig = responseConfigs.find(c => c.isDefault) || responseConfigs[0];
+                    }
+
+                    if (appliedConfig) {
+                        if (appliedConfig.mode === 'code' && appliedConfig.script) {
+                            // Safe-ish eval for demo
+                            // eslint-disable-next-line no-new-func
+                            const transformFunc = new Function('data', appliedConfig.script + '\nreturn transform(data);');
+                            const transformed = transformFunc(rawData);
+                            setDebugData(transformed);
+                        } else {
+                            // For Visual mode, we would parse schema. For now, just show raw + note
+                            setDebugData({
+                                ...rawData,
+                                _note: `Transformed via rule: ${appliedConfig.name} (Visual mode not implemented in runtime)`
+                            });
+                        }
+                    } else {
+                        // No rule found (shouldn't happen if default exists)
+                        setDebugData(rawData);
+                    }
+
                 } catch (err: any) {
                     setDebugError("Transformation Error: " + err.message);
                     setDebugData(rawData); // Show raw on error

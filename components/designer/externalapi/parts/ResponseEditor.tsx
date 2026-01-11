@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Code2, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Code2, Plus, Trash2, ChevronDown, ChevronRight, Play, Settings, X } from 'lucide-react';
 import MonacoEditor from '../../editors/MonacoEditor';
 import { StatusCodeConfig, ResponseNode } from '../common/types';
 
@@ -18,15 +18,29 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     onToggleEnabled,
     t
 }) => {
-    const [activeStatusCode, setActiveStatusCode] = useState('200');
+    const [activeRuleId, setActiveRuleId] = useState<string>('');
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root', 'root_err']));
 
+    // Preview State
+    const [showPreview, setShowPreview] = useState(false);
+    const [previewInput, setPreviewInput] = useState('{\n  "status": {\n    "code": 200,\n    "message": "success"\n  },\n  "data": {\n    "id": 123,\n    "name": "Test Item"\n  }\n}');
+    const [previewResult, setPreviewResult] = useState('');
+    const [previewError, setPreviewError] = useState('');
+
+    useEffect(() => {
+        if (responseConfigs.length > 0 && !activeRuleId) {
+            setActiveRuleId(responseConfigs[0].id);
+        } else if (responseConfigs.length > 0 && !responseConfigs.find(c => c.id === activeRuleId)) {
+            setActiveRuleId(responseConfigs[0].id);
+        }
+    }, [responseConfigs, activeRuleId]);
+
     // Helpers
-    const getActiveResponseConfig = () => responseConfigs.find(c => c.code === activeStatusCode) || responseConfigs[0];
+    const getActiveResponseConfig = () => responseConfigs.find(c => c.id === activeRuleId) || responseConfigs[0];
     const activeResConfig = getActiveResponseConfig();
 
     const updateResponseConfig = (updater: (config: StatusCodeConfig) => StatusCodeConfig) => {
-        onChange(responseConfigs.map(c => c.code === activeStatusCode ? updater(c) : c));
+        onChange(responseConfigs.map(c => c.id === activeRuleId ? updater(c) : c));
     };
 
     const toggleNodeExpand = (nodeId: string) => {
@@ -72,18 +86,46 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
         });
     };
 
-    const handleAddStatus = () => {
-        const code = prompt("Enter HTTP Status or specific value (e.g. 200, or 'success'):");
-        if (code && !responseConfigs.find(c => c.code === code)) {
-            const newConfig: StatusCodeConfig = {
-                code,
-                name: 'New Condition',
-                mode: 'visual',
-                schema: [{ id: `root_${code}`, targetKey: 'root', type: 'object', required: true, sourcePath: '$', mock: '', desc: 'Root', children: [] }],
-                script: ''
-            };
-            onChange([...responseConfigs, newConfig]);
-            setActiveStatusCode(code);
+    const handleAddRule = () => {
+        const newId = `rule_${Date.now()}`;
+        const newConfig: StatusCodeConfig = {
+            id: newId,
+            code: 'new', // legacy
+            name: 'New Rule',
+            condition: '200',
+            isDefault: false,
+            mode: 'visual',
+            schema: [{ id: `root_${newId}`, targetKey: 'root', type: 'object', required: true, sourcePath: '$', mock: '', desc: 'Root', children: [] }],
+            script: 'function transform(data) {\n  return { transformed: true, data: data };\n}'
+        };
+        onChange([...responseConfigs, newConfig]);
+        setActiveRuleId(newId);
+    };
+
+    const handleDeleteRule = (id: string) => {
+        if (responseConfigs.length <= 1) return; // Prevent deleting last rule
+        const newConfigs = responseConfigs.filter(c => c.id !== id);
+        onChange(newConfigs);
+        if (activeRuleId === id) {
+            setActiveRuleId(newConfigs[0].id);
+        }
+    };
+
+    const runPreview = () => {
+        setPreviewError('');
+        setPreviewResult('');
+        try {
+            const inputData = JSON.parse(previewInput);
+            if (activeResConfig.mode === 'code') {
+                // eslint-disable-next-line no-new-func
+                const transformFunc = new Function('data', activeResConfig.script + '\nreturn transform(data);');
+                const result = transformFunc(inputData);
+                setPreviewResult(JSON.stringify(result, null, 2));
+            } else {
+                setPreviewResult("// Visual mode preview not implemented in client-side demo.\n// Please switch to Code mode to test JS transformation.");
+            }
+        } catch (e: any) {
+            setPreviewError(e.message);
         }
     };
 
@@ -178,6 +220,8 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
         });
     };
 
+    if (!activeResConfig) return null;
+
     return (
         <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-800 min-w-0 border-l border-gray-200 dark:border-gray-700">
             {/* Header */}
@@ -203,44 +247,83 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                 </div>
             ) : (
                 <>
-                    {/* Status Tabs */}
+                    {/* Status Tabs / Rules */}
                     <div className="px-2 pt-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto no-scrollbar">
                         {responseConfigs.map(c => (
-                            <button
-                                key={c.code}
-                                onClick={() => setActiveStatusCode(c.code)}
-                                className={`
-                                    px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r relative top-[1px]
-                                    ${activeStatusCode === c.code
-                                        ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border-gray-200 dark:border-gray-700'
-                                        : 'bg-gray-200 dark:bg-gray-800/50 text-gray-500 border-transparent hover:bg-gray-300 dark:hover:bg-gray-700'
-                                    }
+                            <div key={c.id} className="relative group">
+                                <button
+                                    onClick={() => setActiveRuleId(c.id)}
+                                    className={`
+                                    px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r relative top-[1px] flex items-center gap-2
+                                    ${activeRuleId === c.id
+                                            ? 'bg-white dark:bg-gray-800 text-nebula-600 dark:text-nebula-400 border-gray-200 dark:border-gray-700'
+                                            : 'bg-gray-200 dark:bg-gray-800/50 text-gray-500 border-transparent hover:bg-gray-300 dark:hover:bg-gray-700'
+                                        }
                                 `}
-                            >
-                                <span className="font-bold mr-1">{c.code}</span> {c.name}
-                            </button>
+                                >
+                                    <span>{c.name}</span>
+                                    {c.isDefault && <span className="text-[9px] bg-gray-300 dark:bg-gray-600 px-1 rounded text-gray-700 dark:text-gray-300">Default</span>}
+                                </button>
+                                {!c.isDefault && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteRule(c.id); }}
+                                        className="absolute -top-1 -right-1 bg-gray-200 hover:bg-red-500 hover:text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                )}
+                            </div>
                         ))}
-                        <button onClick={handleAddStatus} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500" title={t.addStatus}><Plus size={14} /></button>
+                        <button onClick={handleAddRule} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500" title="Add Rule"><Plus size={14} /></button>
                     </div>
 
-                    {/* Mode Toggle & Toolbar */}
-                    <div className="bg-white dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                        <div className="flex bg-gray-100 dark:bg-gray-700 rounded p-0.5">
-                            <button
-                                onClick={() => updateResponseConfig(c => ({ ...c, mode: 'visual' }))}
-                                className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'visual' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
-                            >
-                                {t.visualMode}
-                            </button>
-                            <button
-                                onClick={() => updateResponseConfig(c => ({ ...c, mode: 'code' }))}
-                                className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'code' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
-                            >
-                                {t.codeMode}
-                            </button>
+                    {/* Editor Toolbar (Rule Settings + Mode + Preview) */}
+                    <div className="bg-white dark:bg-gray-800 p-3 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Rule Name</label>
+                                <input
+                                    type="text"
+                                    value={activeResConfig.name}
+                                    onChange={(e) => updateResponseConfig(c => ({ ...c, name: e.target.value }))}
+                                    className="w-full text-xs px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 focus:ring-1 focus:ring-nebula-500 outline-none"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Trigger Condition {activeResConfig.isDefault && "(Default)"}</label>
+                                <input
+                                    type="text"
+                                    value={activeResConfig.condition}
+                                    onChange={(e) => updateResponseConfig(c => ({ ...c, condition: e.target.value }))}
+                                    disabled={activeResConfig.isDefault}
+                                    placeholder="e.g. 200"
+                                    className={`w-full text-xs px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 focus:ring-1 focus:ring-nebula-500 outline-none ${activeResConfig.isDefault ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                />
+                            </div>
                         </div>
-                        <div className="text-[10px] text-gray-400 italic px-2">
-                            Condition: {activeStatusCode}
+
+                        <div className="flex justify-between items-center">
+                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded p-0.5">
+                                <button
+                                    onClick={() => updateResponseConfig(c => ({ ...c, mode: 'visual' }))}
+                                    className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'visual' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
+                                >
+                                    {t.visualMode}
+                                </button>
+                                <button
+                                    onClick={() => updateResponseConfig(c => ({ ...c, mode: 'code' }))}
+                                    className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'code' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
+                                >
+                                    {t.codeMode}
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => setShowPreview(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 rounded text-xs font-medium transition-colors"
+                            >
+                                <Play size={12} /> Preview
+                            </button>
                         </div>
                     </div>
 
@@ -272,6 +355,43 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* Preview Modal */}
+                    {showPreview && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-2xl h-[500px] flex flex-col overflow-hidden">
+                                <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                                    <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                        <Play size={14} className="text-green-500" /> Preview Transformation
+                                    </h3>
+                                    <button onClick={() => setShowPreview(false)} className="text-gray-500 hover:text-gray-700"><X size={16} /></button>
+                                </div>
+                                <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                                    <div className="flex-1 flex flex-col p-2 bg-gray-50 dark:bg-gray-900/50">
+                                        <label className="text-xs font-bold text-gray-500 mb-2 block">Input (Native Response)</label>
+                                        <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+                                            <MonacoEditor language="json" value={previewInput} onChange={(v) => setPreviewInput(v || '')} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 flex flex-col p-2 bg-white dark:bg-gray-900">
+                                        <label className="text-xs font-bold text-gray-500 mb-2 block">Output (Encapsulated)</label>
+                                        <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded overflow-hidden relative">
+                                            {previewError ? (
+                                                <div className="p-4 text-red-500 text-xs font-mono whitespace-pre-wrap">{previewError}</div>
+                                            ) : (
+                                                <MonacoEditor language="json" value={previewResult} readOnly={true} />
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
+                                    <button onClick={runPreview} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold flex items-center gap-2">
+                                        <Play size={14} /> Run Transformation
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

@@ -48,8 +48,11 @@ export interface ResponseNode {
 }
 
 export interface StatusCodeConfig {
-    code: string; // e.g. "200"
-    name: string; // e.g. "Success"
+    id: string; // Unique Identifier
+    name: string; // User defined rule name
+    condition: string; // Trigger condition (e.g. status==200)
+    isDefault: boolean; // First rule is default usually, but explicit flag helps
+    code?: string; // Legacy support or just use condition
     mode: 'visual' | 'code';
     schema: ResponseNode[]; // For visual mode
     script: string; // For code mode

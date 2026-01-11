@@ -3,7 +3,6 @@ import {
     Info, Shield, Settings, FileText, Plus, Edit3, Trash2
 } from 'lucide-react';
 import TagInput from '../../../common/TagInput';
-import RichTextEditor from '../../../common/RichTextEditor';
 import MonacoEditor from '../../editors/MonacoEditor';
 import AuthEditor from '../common/AuthEditor';
 import HookEditor from '../common/HookEditor';
@@ -320,7 +319,11 @@ const RequestPanel: React.FC<RequestPanelProps> = ({
                         <div><label className="block text-xs font-bold text-gray-500 mb-1">{t.basicDesc}</label><textarea value={basicInfo.description} onChange={(e) => setBasicInfo({ ...basicInfo, description: e.target.value })} className="w-full px-3 py-2 border rounded-md dark:border-gray-600 bg-white dark:bg-gray-800 text-sm h-20" /></div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">{t.basicUsage}</label>
-                            <RichTextEditor value={basicInfo.usage} onChange={(val) => setBasicInfo({ ...basicInfo, usage: val })} height="250px" />
+                            <textarea
+                                value={basicInfo.usage}
+                                onChange={(e) => setBasicInfo({ ...basicInfo, usage: e.target.value })}
+                                className="w-full px-3 py-2 border rounded-md dark:border-gray-600 bg-white dark:bg-gray-800 text-sm h-32 focus:ring-2 focus:ring-nebula-500 outline-none"
+                            />
                         </div>
                     </div>
                 )}
