@@ -34,6 +34,7 @@ interface ProjectExplorerProps {
    onRootContextMenu: (e: React.MouseEvent, rootType: string) => void;
    onMoveNode: (draggedId: string, targetId: string, rootType: string) => void;
    onAddRootItem: (root: 'pages' | 'apps' | 'apis' | 'models' | 'external', isFolder: boolean) => void;
+   className?: string; // Add className prop
 }
 
 export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
@@ -48,7 +49,8 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
    onContextMenu,
    onRootContextMenu,
    onMoveNode,
-   onAddRootItem
+   onAddRootItem,
+   className = ''
 }) => {
    const t = LOCALE[lang];
 
@@ -101,8 +103,8 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
    return (
       <div
          className={`
-              bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col relative
-              transition-all duration-300 ease-in-out h-full
+              bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col
+              transition-all duration-300 ease-in-out h-full ${className}
           `}
          style={{
             width: isVisible ? width : 0,
@@ -161,9 +163,6 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
                         <Monitor size={14} className="text-blue-500" />
                         {t.expWeb}
                      </button>
-                     <div className="hidden group-hover:flex">
-                        <button onClick={(e) => { e.stopPropagation(); onAddRootItem('pages', false); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Plus size={10} /></button>
-                     </div>
                   </div>
                   {sidebarExpanded.pages && (
                      <div className="mt-1">
@@ -193,9 +192,6 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
                         <Smartphone size={14} className="text-purple-500" />
                         {t.expApp}
                      </button>
-                     <div className="hidden group-hover:flex">
-                        <button onClick={(e) => { e.stopPropagation(); onAddRootItem('apps', false); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Plus size={10} /></button>
-                     </div>
                   </div>
                   {sidebarExpanded.apps && (
                      <div className="mt-1">
@@ -225,9 +221,6 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
                         <Server size={14} className="text-green-500" />
                         {t.expBackend}
                      </button>
-                     <div className="hidden group-hover:flex">
-                        <button onClick={(e) => { e.stopPropagation(); onAddRootItem('apis', false); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Plus size={10} /></button>
-                     </div>
                   </div>
                   {sidebarExpanded.apis && (
                      <div className="mt-1">
@@ -245,7 +238,10 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
 
                {/* Database Group */}
                <div className="mt-2">
-                  <div className="flex items-center justify-between group">
+                  <div
+                     className="flex items-center justify-between group cursor-context-menu"
+                     onContextMenu={(e) => onRootContextMenu(e, 'models')}
+                  >
                      <button
                         onClick={() => toggleSidebarGroup('models')}
                         className="flex-1 flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-xs font-medium"
@@ -254,9 +250,6 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
                         <Database size={14} className="text-amber-500" />
                         {t.expDatabase}
                      </button>
-                     <div className="hidden group-hover:flex">
-                        <button onClick={(e) => { e.stopPropagation(); onAddRootItem('models', true); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Plus size={10} /></button>
-                     </div>
                   </div>
                   {sidebarExpanded.models && (
                      <div className="mt-1">
@@ -274,7 +267,10 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
 
                {/* External Interfaces Group */}
                <div className="mt-2">
-                  <div className="flex items-center justify-between group">
+                  <div
+                     className="flex items-center justify-between group cursor-context-menu"
+                     onContextMenu={(e) => onRootContextMenu(e, 'external')}
+                  >
                      <button
                         onClick={() => toggleSidebarGroup('external')}
                         className="flex-1 flex items-center gap-1 px-2 py-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded text-xs font-medium"
@@ -283,9 +279,6 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
                         <Globe size={14} className="text-purple-500" />
                         {t.expExternal}
                      </button>
-                     <div className="hidden group-hover:flex">
-                        <button onClick={(e) => { e.stopPropagation(); onAddRootItem('external', true); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Plus size={10} /></button>
-                     </div>
                   </div>
                   {sidebarExpanded.external && (
                      <div className="mt-1">

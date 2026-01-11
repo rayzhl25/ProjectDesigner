@@ -34,6 +34,8 @@ const App: React.FC = () => {
     <ProjectDesigner
       project={currentProject}
       lang={lang}
+      theme={theme}
+      user={user}
       onBack={() => { }}
     />
   );

@@ -64,13 +64,41 @@ export const fetchChildNodes = async (parentId: string, type: string): Promise<F
     });
 };
 
+// Helper to recursively find a node by ID
+const findNode = (items: FileSystemItem[], id: string): FileSystemItem | null => {
+    for (const item of items) {
+        if (item.id === id) return item;
+        if (item.children) {
+            const found = findNode(item.children, id);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+// Helper to find the parent array containing a node (for removal/updates)
+const findParentArray = (items: FileSystemItem[], childId: string): FileSystemItem[] | null => {
+    // Check if the node is at this level
+    if (items.some(item => item.id === childId)) return items;
+
+    // Check children recursively
+    for (const item of items) {
+        if (item.children) {
+            const found = findParentArray(item.children, childId);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
 export const createNode = async (projectId: string, rootType: string, parentId: string | null, data: any): Promise<FileSystemItem> => {
     return new Promise((resolve) => {
         setTimeout(() => {
             const newId = `node_${Date.now()}`;
+            let newNode: FileSystemItem;
 
             // Special handling for creating a new Database Connection
-            if (rootType === 'models' && !parentId) {
+            if (rootType === 'models' && (!parentId || parentId === '')) {
                 const dbChildren: FileSystemItem[] = [
                     { id: `${newId}_tables`, name: 'Tables', type: 'dbGroup', children: [], parentId: newId },
                     { id: `${newId}_views`, name: 'Views', type: 'dbGroup', children: [], parentId: newId },
@@ -80,55 +108,155 @@ export const createNode = async (projectId: string, rootType: string, parentId: 
                     { id: `${newId}_queries`, name: 'Queries', type: 'dbGroup', children: [], parentId: newId },
                 ];
 
-                const newNode: FileSystemItem = {
+                newNode = {
                     id: newId,
                     name: data.name,
                     type: 'dbConnection', // Force type for root models
                     children: dbChildren
                 };
-
-                // Update local mock store for persistence in session
-                if (mockFiles['models']) mockFiles['models'].push(newNode);
-
-                resolve(newNode);
-                return;
+            } else {
+                // Normal creation
+                newNode = {
+                    id: newId,
+                    name: data.name,
+                    type: data.type,
+                    children: data.type === 'folder' ? [] : undefined // Folders get empty children array
+                };
             }
 
-            // Normal creation
-            resolve({
-                id: newId,
-                name: data.name,
-                type: data.type,
-                children: data.type === 'folder' ? [] : undefined
-            });
+            // Insert into mockFiles
+            const rootFiles = mockFiles[rootType] || [];
+            if (!parentId) {
+                rootFiles.push(newNode);
+                mockFiles[rootType] = rootFiles;
+            } else {
+                const parent = findNode(rootFiles, parentId);
+                if (parent) {
+                    if (!parent.children) parent.children = [];
+                    parent.children.push(newNode);
+                } else {
+                    // Fallback to root if parent not found (shouldn't happen usually)
+                    rootFiles.push(newNode);
+                }
+            }
+
+            resolve(newNode);
         }, 500);
     });
 };
 
 export const updateNode = async (projectId: string, nodeId: string, data: any): Promise<void> => {
-    return new Promise((resolve) => setTimeout(resolve, 400));
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            Object.keys(mockFiles).forEach(key => {
+                const node = findNode(mockFiles[key], nodeId);
+                if (node) {
+                    if (data.name) node.name = data.name;
+                    // Copy other props if needed
+                }
+            });
+            resolve();
+        }, 400);
+    });
 };
 
 export const deleteNode = async (projectId: string, nodeId: string): Promise<void> => {
     return new Promise((resolve) => {
-        // Mock deletion by filtering out the node from the top-level lists
-        Object.keys(mockFiles).forEach(key => {
-            mockFiles[key] = mockFiles[key].filter(item => item.id !== nodeId);
-        });
-        setTimeout(resolve, 400);
+        setTimeout(() => {
+            Object.keys(mockFiles).forEach(key => {
+                const rootList = mockFiles[key];
+                const parentEx = findParentArray(rootList, nodeId);
+                if (parentEx) {
+                    const idx = parentEx.findIndex(n => n.id === nodeId);
+                    if (idx !== -1) {
+                        parentEx.splice(idx, 1);
+                    }
+                }
+            });
+            resolve();
+        }, 400);
     });
 };
 
 export const moveNode = async (projectId: string, draggedId: string, targetId: string, rootType: string): Promise<void> => {
-    return new Promise((resolve) => setTimeout(resolve, 400));
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            const rootList = mockFiles[rootType];
+            if (!rootList) {
+                reject("Root type not found");
+                return;
+            }
+
+            // 1. Find and Remove Dragged Node
+            const sourceParentArray = findParentArray(rootList, draggedId);
+            if (!sourceParentArray) {
+                reject("Dragged node not found");
+                return;
+            }
+            const draggedIndex = sourceParentArray.findIndex(n => n.id === draggedId);
+            if (draggedIndex === -1) {
+                reject("Dragged node not found in parent");
+                return;
+            }
+            const [draggedNode] = sourceParentArray.splice(draggedIndex, 1);
+
+            // 2. Find Target Node
+            const targetNode = findNode(rootList, targetId);
+            if (targetNode) {
+                // If target is a folder-like item, add to its children
+                if (targetNode.children) {
+                    targetNode.children.push(draggedNode);
+                    if (!targetNode.isOpen) targetNode.isOpen = true; // Auto-expand
+                } else {
+                    // If target is a file, we can optionally move to the same parent as target (sibling)
+                    // But the requirement says "drag to new directory", so maybe we should limit to folders.
+                    // However, standard UX often allows reordering. Here we'll just append to the *target's parent*.
+                    const targetParentArray = findParentArray(rootList, targetId);
+                    if (targetParentArray) {
+                        // Insert after target or at end? Let's just push for now or check index
+                        // Simplicity: pushing to the parent of the target file
+                        targetParentArray.push(draggedNode);
+                    } else {
+                        // Fallback: put back to source
+                        sourceParentArray.push(draggedNode);
+                    }
+                }
+            } else {
+                // Target not found? Put back.
+                sourceParentArray.push(draggedNode);
+            }
+
+            resolve();
+        }, 400);
+    });
 };
 
 export const copyNode = async (projectId: string, nodeId: string): Promise<FileSystemItem> => {
-    return new Promise((resolve) => setTimeout(() => resolve({
-        id: `copy_${nodeId}_${Date.now()}`,
-        name: 'Copy of Node',
-        type: 'file'
-    }), 500));
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            // Very basic shallow copy mock
+            Object.keys(mockFiles).forEach(key => {
+                const list = mockFiles[key];
+                const original = findNode(list, nodeId);
+                if (original) {
+                    const parentArr = findParentArray(list, nodeId);
+                    if (parentArr) {
+                        const copy: FileSystemItem = {
+                            ...original,
+                            id: `copy_${original.id}_${Date.now()}`,
+                            name: `${original.name} (Copy)`,
+                            children: original.children ? [] : undefined // Don't deep copy children for now
+                        };
+                        parentArr.push(copy);
+                        resolve(copy);
+                        return;
+                    }
+                }
+            });
+            // If not found
+            resolve({ id: 'err', name: 'Error', type: 'file' });
+        }, 500);
+    });
 };
 
 // --- Git ---

@@ -24,20 +24,27 @@ import {
   Terminal,
   AlertCircle,
   FileCode2,
-  ServerCog // Add this icon
+  ServerCog, // Add this icon
+  Pin,
+  PinOff
 } from 'lucide-react';
-import { Language, FileSystemItem, FileType } from '../types';
+import { Language, FileSystemItem, FileType, ThemeMode, User } from '../types';
 import { LOCALE } from '../constants';
 import FrontendDesigner from './designer/FrontendDesigner';
 import BackendDesigner from './designer/BackendDesigner';
-import DatabaseDesigner from './designer/DatabaseDesigner';
+import TableDesigner from './designer/TableDesigner';
+import ViewDesigner from './designer/ViewDesigner';
 import DatabaseConfigEditor from './designer/DatabaseConfigEditor';
 import ApiEditor from './designer/externalapi/ApiEditor';
+import FunctionDesigner from './designer/FunctionDesigner';
+import ProcedureDesigner from './designer/ProcedureDesigner';
+import TriggerDesigner from './designer/TriggerDesigner';
 import GitRepository from './designer/GitRepository';
 import ProjectSettings from './designer/ProjectSettings';
 import DebugConsole from './designer/DebugConsole';
 import UnifiedFileEditor from './designer/editors/UnifiedFileEditor';
 import SystemConfigEditor from './designer/externalapi/SystemConfigEditor'; // Import new editor path
+import QueryEditor from './designer/editors/QueryEditor'; // Import Query Editor
 import { ProjectExplorer } from './designer/ProjectExplorer';
 import { ContextMenu, FileTree } from './designer/FileTree';
 import {
@@ -53,6 +60,8 @@ import {
 interface ProjectDesignerProps {
   project: any;
   lang: Language;
+  theme: ThemeMode;
+  user?: User;
   onBack: () => void;
 }
 
@@ -73,7 +82,7 @@ interface FileDialogState {
   rootType?: string;
 }
 
-const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack }) => {
+const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, theme, user, onBack }) => {
   const t = LOCALE[lang];
 
   // --- State ---
@@ -89,6 +98,7 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
   const [tabs, setTabs] = useState<Tab[]>([]);
 
   const [showExplorer, setShowExplorer] = useState(true);
+  const [isExplorerPinned, setIsExplorerPinned] = useState(false);
   const [clipboard, setClipboard] = useState<{ type: 'cut' | 'copy', item: FileSystemItem } | null>(null);
   const [isProjectDirOpen, setIsProjectDirOpen] = useState(false);
 
@@ -240,7 +250,7 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
   };
 
   const handleOpenFile = (file: FileSystemItem) => {
-    // Only block standard folders and db groups, allow 'system', 'dbTable', 'dbConnection' etc. to open
+    // Only block standard folders and db groups, allow 'system', 'dbTable', 'dbConnection', 'dbFunc', 'dbProc', 'dbTrigger' etc. to open
     if (file.type === 'folder' || file.type === 'dbGroup') return;
 
     const existingTab = tabs.find(t => t.fileId === file.id);
@@ -419,6 +429,7 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
 
     if (action === 'db_config') {
       if (item) {
+        // Works for both dbConnection and externalSys (System Config)
         handleOpenFile(item);
       }
       return;
@@ -447,15 +458,36 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
       if (currentRootType === 'pages' || currentRootType === 'apps') type = 'frontend';
       // If we are in 'external' root type, check hierarchy
       if (currentRootType === 'external') {
-        // If no item selected (root context) -> we create system (handled by addRootItem normally, but here context menu)
-        // Actually, root context menu handles creating system via specific logic if needed, but 'new_file' usually implies file.
         // If targetItem is a System or Folder -> create 'externalApi'.
         if (item && (item.type === 'externalSys' || item.type === 'folder')) {
           type = 'externalApi';
         }
       }
-
       setDialog({ isOpen: true, type: 'create_file', targetId: targetId, value: '', parentType: type, rootType: currentRootType });
+
+    } else if (action === 'new_sys') {
+      // Create new external system (root level under external)
+      setDialog({ isOpen: true, type: 'create_file', targetId: null, value: '', parentType: 'externalSys', rootType: 'external' });
+    } else if (action === 'new_query' && item) {
+      // Create new query file
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbQuery', rootType: 'models' });
+    } else if (action === 'new_table' && item) {
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbTable', rootType: 'models' });
+    } else if (action === 'new_view' && item) {
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbView', rootType: 'models' });
+    } else if (action === 'new_func' && item) {
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbFunc', rootType: 'models' });
+    } else if (action === 'new_proc' && item) {
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbProc', rootType: 'models' });
+    } else if (action === 'new_trigger' && item) {
+      setDialog({ isOpen: true, type: 'create_file', targetId: item.id, value: '', parentType: 'dbTrigger', rootType: 'models' });
+    } else if (action === 'er_diagram' && item) {
+      // ER Diagram is likely a view, not a file to creation in the tree immediately, or maybe a file?
+      // Let's create a temporary tab or a file
+      // For mock purposes, let's just open a tab
+      const erTabId = `er_${Date.now()}`;
+      setTabs([...tabs, { id: erTabId, fileId: 'er_diagram', title: 'ER Diagram', type: 'dbTable' }]); // Using dbTable type for now or generic
+      setActiveTabId(erTabId);
     } else if (action === 'new_folder') {
       setDialog({ isOpen: true, type: 'create_folder', targetId: targetId, value: '', rootType: currentRootType });
     } else if (action === 'rename' && item) {
@@ -576,12 +608,14 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
       }}
     >
       {/* 1. Project Explorer Sidebar */}
+      {/* 1. Project Explorer Sidebar */}
       <ProjectExplorer
         isVisible={showExplorer}
         width={sidebarWidth}
         onResizeStart={() => setIsResizing(true)}
         activeFileId={activeTab?.fileId || null}
         lang={lang}
+        className="relative h-full"
         items={{
           pages,
           apps,
@@ -598,7 +632,15 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
       />
 
       {/* 2. Main Right Column */}
-      <div className="flex-1 flex flex-col min-w-0 h-full relative">
+      <div
+        className="flex-1 flex flex-col min-w-0 h-full relative"
+        onClickCapture={() => {
+          // Close sidebar if UNPINNED and OPEN and clicked outside
+          if (showExplorer && !isExplorerPinned) {
+            setShowExplorer(false);
+          }
+        }}
+      >
 
         {/* Header */}
         <header className="h-12 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 z-20 shadow-sm flex-shrink-0">
@@ -608,11 +650,40 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
             </button>
 
             <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${showExplorer ? 'bg-nebula-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-nebula-600 dark:hover:text-white'}`}
-                onClick={() => setShowExplorer(!showExplorer)}
-                title="Toggle Project Explorer"
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${showExplorer ? 'bg-nebula-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-nebula-600 dark:hover:text-white'}`}
+                onClick={() => {
+                  if (!showExplorer) {
+                    // Closed -> Open (Unpinned)
+                    setShowExplorer(true);
+                    setIsExplorerPinned(false);
+                  } else if (showExplorer && !isExplorerPinned) {
+                    // Open (Unpinned) -> Pinned
+                    setIsExplorerPinned(true);
+                  } else {
+                    // Pinned -> Closed
+                    // Wait, user said "Click again unfix" (unpin). If we want to strictly follow "Unfix", we should go to Open(Unpinned).
+                    // But then how to close?
+                    // Let's assum "Unfix" means Unpin, so it goes back to Open(Unpinned). 
+                    // And user can close by clicking again? 
+                    // Actually, if I go Pinned -> Unpinned, then next click goes Pinned again? That's a loop.
+                    // Let's implement: Closed -> Open (Unpinned) -> Pinned -> Unpinned(Open).
+                    // Then if user clicks *again*, it goes to Pinned? That prevents closing via button.
+                    // Let's try: Closed -> Open -> Pinned -> Closed. 
+                    // User said "Click 1 open, Click 2 fix, Click 3 unfix". "Unfix" could mean "Release" (Close) or "Release Pin".
+                    // I will implement: Closed -> Open(Unpinned) -> Pinned -> Closed. This is safest standard UI.
+                    setShowExplorer(false);
+                    setIsExplorerPinned(false);
+                  }
+                }}
+                title="Toggle Explorer: Click to Open -> Pin -> Close"
               >
-                {showExplorer ? <AlignLeft size={18} /> : <Package size={18} />}
+                {/* Icon logic: 
+                    If Closed: Package (or whatever closed icon)
+                    If Open (Unpinned): AlignLeft (or Open icon)
+                    If Pinned: Pin 
+                */}
+                {!showExplorer ? <Package size={18} /> : (isExplorerPinned ? <Pin size={18} fill="currentColor" /> : <AlignLeft size={18} />)}
               </div>
             </div>
           </div>
@@ -622,13 +693,14 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
               let Icon = Layout;
               if (tab.type === 'backend') Icon = Server;
               if (tab.type === 'database') Icon = Database;
-              if (tab.type === 'dbTable' || tab.type === 'dbView' || tab.type === 'dbFunc') Icon = Database; // Default for specific DB items
+              if (tab.type === 'dbTable' || tab.type === 'dbView' || tab.type === 'dbFunc' || tab.type === 'dbProc' || tab.type === 'dbTrigger') Icon = Database; // Default for specific DB items
               if (tab.type === 'dbConnection') Icon = Database;
               if (tab.type === 'externalApi') Icon = Globe;
               if (tab.type === 'externalSys') Icon = ServerCog;
               if (tab.type === 'settings') Icon = Settings;
               if (tab.type === 'git_repo') Icon = GitGraph;
               if (tab.type === 'file') Icon = FileCode2;
+              if (tab.type === 'dbQuery') Icon = FileCode2;
 
               const isActive = tab.id === activeTabId;
               const isDragged = tab.id === draggedTabId;
@@ -694,11 +766,16 @@ const ProjectDesigner: React.FC<ProjectDesignerProps> = ({ project, lang, onBack
             <>
               {activeFileObject.type === 'frontend' && <FrontendDesigner file={activeFileObject} lang={lang} />}
               {activeFileObject.type === 'backend' && <BackendDesigner file={activeFileObject} />}
-              {(activeFileObject.type === 'database' || activeFileObject.type === 'dbTable' || activeFileObject.type === 'dbView') && <DatabaseDesigner file={activeFileObject} />}
+              {activeFileObject.type === 'dbView' && <ViewDesigner file={activeFileObject} />}
+              {activeFileObject.type === 'dbFunc' && <FunctionDesigner file={activeFileObject} />}
+              {activeFileObject.type === 'dbProc' && <ProcedureDesigner file={activeFileObject} />}
+              {activeFileObject.type === 'dbTrigger' && <TriggerDesigner file={activeFileObject} />}
+              {(activeFileObject.type === 'database' || activeFileObject.type === 'dbTable') && <TableDesigner file={activeFileObject} />}
               {activeFileObject.type === 'dbConnection' && <DatabaseConfigEditor file={activeFileObject} lang={lang} />}
               {activeFileObject.type === 'externalApi' && <ApiEditor file={activeFileObject} lang={lang} />}
               {activeFileObject.type === 'externalSys' && <SystemConfigEditor file={activeFileObject} lang={lang} />}
               {activeFileObject.type === 'file' && <UnifiedFileEditor file={activeFileObject} />}
+              {activeFileObject.type === 'dbQuery' && <QueryEditor file={activeFileObject} theme={theme} />}
               {activeFileObject.type === 'settings' && <ProjectSettings />}
               {activeFileObject.type === 'git_repo' && <GitRepository lang={lang} rootType={activeFileObject.rootType || ''} />}
             </>

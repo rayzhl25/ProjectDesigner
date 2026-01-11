@@ -64,7 +64,7 @@ export const generateVideoWithVeo = async (base64Image: string, mimeType: string
   const ai = getAiClient();
 
   try {
-    let operation = await ai.models.generateVideos({
+    let operation = await (ai as any).models.generateVideos({
       model: 'veo-3.1-fast-generate-preview',
       prompt: prompt || "电影感地动态化这张图片",
       image: {
@@ -81,7 +81,7 @@ export const generateVideoWithVeo = async (base64Image: string, mimeType: string
     // Polling loop
     while (!operation.done) {
       await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
+      operation = await (ai as any).operations.getVideosOperation({ operation: operation });
     }
 
     const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;

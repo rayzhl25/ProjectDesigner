@@ -25,7 +25,9 @@ export const BaseNode: React.FC<BaseNodeProps> = ({
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (hasChildren) {
+        if (['externalSys', 'dbConnection'].includes(item.type)) {
+            onSelect(item);
+        } else if (hasChildren) {
             onToggle(item.id);
         } else {
             onSelect(item);

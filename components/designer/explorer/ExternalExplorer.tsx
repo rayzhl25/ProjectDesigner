@@ -1,4 +1,5 @@
 import React from 'react';
+import { ServerCog } from 'lucide-react';
 import { FileSystemItem } from '../../../types';
 import { BaseTree } from './BaseTree';
 import { ExplorerProvider } from './ExplorerContext';
@@ -25,11 +26,16 @@ export const ExternalExplorer: React.FC<ExternalExplorerProps> = (props) => {
         showDetails: props.showDetails
     };
 
+    const getExternalIcon = (item: FileSystemItem) => {
+        if (item.type === 'externalSys') return <ServerCog size={14} className="text-purple-500" />;
+        return getCommonFileIcon(item);
+    };
+
     return (
         <ExplorerProvider value={contextValue}>
             <BaseTree
                 items={props.items}
-                getIcon={getCommonFileIcon}
+                getIcon={getExternalIcon}
             />
         </ExplorerProvider>
     );
