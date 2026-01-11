@@ -50,7 +50,7 @@ export interface ResponseNode {
 export interface StatusCodeConfig {
     id: string; // Unique Identifier
     name: string; // User defined rule name
-    condition: string; // Trigger condition (e.g. status==200)
+    condition: { field: string; operator: string; value: string }; // Trigger comparison
     isDefault: boolean; // First rule is default usually, but explicit flag helps
     code?: string; // Legacy support or just use condition
     mode: 'visual' | 'code';

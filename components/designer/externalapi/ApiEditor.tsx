@@ -96,7 +96,7 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
             id: 'default_rule',
             code: '200',
             name: '默认规则',
-            condition: 'default',
+            condition: { field: 'httpStatus', operator: '==', value: '200' },
             isDefault: true,
             mode: 'visual',
             schema: [
@@ -121,7 +121,7 @@ function transform(data) {
             id: uuid(),
             code: '404',
             name: '资源未找到',
-            condition: '404', // check against status code
+            condition: { field: 'httpStatus', operator: '==', value: '404' },
             isDefault: false,
             mode: 'visual',
             schema: [
@@ -262,9 +262,11 @@ function transform(data) {
             await new Promise(resolve => setTimeout(resolve, 500));
 
             let rawData: any = null;
+            let httpStatus = 200; // Initialize HTTP status
 
             // MOCK LOGIC for Demo or System URL
             if (urlConfig.baseUrlType === 'system' || !urlConfig.customBaseUrl) {
+                httpStatus = 200;
                 rawData = {
                     status: { code: 200, message: "Success" },
                     data: {
@@ -344,6 +346,7 @@ function transform(data) {
                         body: reqBody
                     });
 
+                    httpStatus = response.status; // Capture HTTP status
                     const text = await response.text();
 
                     // Try to parse JSON
@@ -359,6 +362,7 @@ function transform(data) {
 
                 } catch (e) {
                     console.warn("Fetch failed, using mock data for demo", e);
+                    httpStatus = 200; // Fallback mock status
                     rawData = {
                         status: { code: 200, message: "Success" },
                         data: {
@@ -377,18 +381,31 @@ function transform(data) {
                     // Priority: First matching specific rule -> Default rule
                     let appliedConfig: StatusCodeConfig | undefined;
 
+                    const getValue = (obj: any, path: string) => {
+                        if (path === 'httpStatus') return httpStatus;
+                        return path.split('.').reduce((o, i) => (o ? o[i] : undefined), obj);
+                    };
+
                     for (const cfg of responseConfigs) {
                         if (cfg.isDefault) continue; // Skip default in first pass
 
-                        // Simple condition check:
-                        // 1. Exact match with status code in standard fields
-                        const statusCode = rawData?.status?.code || rawData?.code || rawData?.status;
-                        if (String(statusCode) === cfg.condition) {
+                        const leftVal = getValue(rawData, cfg.condition.field);
+                        const rightVal = cfg.condition.value;
+                        let match = false;
+
+                        switch (cfg.condition.operator) {
+                            case '==': match = String(leftVal) == rightVal; break;
+                            case '!=': match = String(leftVal) != rightVal; break;
+                            case '>': match = Number(leftVal) > Number(rightVal); break;
+                            case '<': match = Number(leftVal) < Number(rightVal); break;
+                            case 'contains': match = String(leftVal).includes(rightVal); break;
+                            default: match = false;
+                        }
+
+                        if (match) {
                             appliedConfig = cfg;
                             break;
                         }
-
-                        // 2. TODO: eval complex expression if condition starts with specific marker
                     }
 
                     if (!appliedConfig) {

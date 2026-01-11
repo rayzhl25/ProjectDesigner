@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Code2, Plus, Trash2, ChevronDown, ChevronRight, Play, Settings, X } from 'lucide-react';
+import { Code2, Plus, Trash2, ChevronDown, ChevronRight, Play, Settings, X, Split } from 'lucide-react';
 import MonacoEditor from '../../editors/MonacoEditor';
 import { StatusCodeConfig, ResponseNode } from '../common/types';
+import DebugResultPanel from './DebugResultPanel';
 
 interface ResponseEditorProps {
     responseConfigs: StatusCodeConfig[];
@@ -24,8 +25,8 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     // Preview State
     const [showPreview, setShowPreview] = useState(false);
     const [previewInput, setPreviewInput] = useState('{\n  "status": {\n    "code": 200,\n    "message": "success"\n  },\n  "data": {\n    "id": 123,\n    "name": "Test Item"\n  }\n}');
-    const [previewResult, setPreviewResult] = useState('');
-    const [previewError, setPreviewError] = useState('');
+    const [previewData, setPreviewData] = useState<any>(null);
+    const [previewError, setPreviewError] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (responseConfigs.length > 0 && !activeRuleId) {
@@ -90,9 +91,9 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
         const newId = `rule_${Date.now()}`;
         const newConfig: StatusCodeConfig = {
             id: newId,
-            code: 'new', // legacy
+            code: 'new',
             name: 'New Rule',
-            condition: '200',
+            condition: { field: 'httpStatus', operator: '==', value: '200' },
             isDefault: false,
             mode: 'visual',
             schema: [{ id: `root_${newId}`, targetKey: 'root', type: 'object', required: true, sourcePath: '$', mock: '', desc: 'Root', children: [] }],
@@ -103,7 +104,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     };
 
     const handleDeleteRule = (id: string) => {
-        if (responseConfigs.length <= 1) return; // Prevent deleting last rule
+        if (responseConfigs.length <= 1) return;
         const newConfigs = responseConfigs.filter(c => c.id !== id);
         onChange(newConfigs);
         if (activeRuleId === id) {
@@ -112,17 +113,20 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     };
 
     const runPreview = () => {
-        setPreviewError('');
-        setPreviewResult('');
+        setPreviewError(undefined);
+        setPreviewData(null);
         try {
             const inputData = JSON.parse(previewInput);
             if (activeResConfig.mode === 'code') {
                 // eslint-disable-next-line no-new-func
                 const transformFunc = new Function('data', activeResConfig.script + '\nreturn transform(data);');
                 const result = transformFunc(inputData);
-                setPreviewResult(JSON.stringify(result, null, 2));
+                setPreviewData(result);
             } else {
-                setPreviewResult("// Visual mode preview not implemented in client-side demo.\n// Please switch to Code mode to test JS transformation.");
+                setPreviewData({
+                    original: inputData,
+                    _note: "Visual mode transformation is not implemented for client-side preview yet."
+                });
             }
         } catch (e: any) {
             setPreviewError(e.message);
@@ -223,7 +227,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     if (!activeResConfig) return null;
 
     return (
-        <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-800 min-w-0 border-l border-gray-200 dark:border-gray-700">
+        <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-800 min-w-0 border-l border-gray-200 dark:border-gray-700 h-full overflow-hidden">
             {/* Header */}
             <div className="h-10 px-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 flex-shrink-0">
                 <span className="text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2">
@@ -248,7 +252,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
             ) : (
                 <>
                     {/* Status Tabs / Rules */}
-                    <div className="px-2 pt-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                    <div className="px-2 pt-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto no-scrollbar flex-shrink-0">
                         {responseConfigs.map(c => (
                             <div key={c.id} className="relative group">
                                 <button
@@ -278,10 +282,10 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                     </div>
 
                     {/* Editor Toolbar (Rule Settings + Mode + Preview) */}
-                    <div className="bg-white dark:bg-gray-800 p-3 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-3">
+                    <div className="bg-white dark:bg-gray-800 p-3 border-b border-gray-200 dark:border-gray-700 flex flex-col gap-3 flex-shrink-0">
                         <div className="flex gap-4">
-                            <div className="flex-1">
-                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Rule Name</label>
+                            <div className="w-1/4">
+                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">{t.ruleName}</label>
                                 <input
                                     type="text"
                                     value={activeResConfig.name}
@@ -290,15 +294,40 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Trigger Condition {activeResConfig.isDefault && "(Default)"}</label>
-                                <input
-                                    type="text"
-                                    value={activeResConfig.condition}
-                                    onChange={(e) => updateResponseConfig(c => ({ ...c, condition: e.target.value }))}
-                                    disabled={activeResConfig.isDefault}
-                                    placeholder="e.g. 200"
-                                    className={`w-full text-xs px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 focus:ring-1 focus:ring-nebula-500 outline-none ${activeResConfig.isDefault ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                />
+                                <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">{t.triggerCond} {activeResConfig.isDefault && "(Default)"}</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        title={t.condLeft}
+                                        value={activeResConfig.condition.field}
+                                        onChange={(e) => updateResponseConfig(c => ({ ...c, condition: { ...c.condition, field: e.target.value } }))}
+                                        disabled={activeResConfig.isDefault}
+                                        placeholder="httpStatus"
+                                        className={`flex-1 text-xs px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 outline-none ${activeResConfig.isDefault ? 'opacity-50' : ''}`}
+                                    />
+                                    <select
+                                        title={t.condOp}
+                                        value={activeResConfig.condition.operator}
+                                        onChange={(e) => updateResponseConfig(c => ({ ...c, condition: { ...c.condition, operator: e.target.value } }))}
+                                        disabled={activeResConfig.isDefault}
+                                        className={`w-16 text-xs px-1 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 outline-none ${activeResConfig.isDefault ? 'opacity-50' : ''}`}
+                                    >
+                                        <option value="==">==</option>
+                                        <option value="!=">!=</option>
+                                        <option value=">">&gt;</option>
+                                        <option value="<">&lt;</option>
+                                        <option value="contains">In</option>
+                                    </select>
+                                    <input
+                                        title={t.condRight}
+                                        type="text"
+                                        value={activeResConfig.condition.value}
+                                        onChange={(e) => updateResponseConfig(c => ({ ...c, condition: { ...c.condition, value: e.target.value } }))}
+                                        disabled={activeResConfig.isDefault}
+                                        placeholder="Value"
+                                        className={`flex-1 text-xs px-2 py-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:border-nebula-500 outline-none ${activeResConfig.isDefault ? 'opacity-50' : ''}`}
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -319,79 +348,79 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                             </div>
 
                             <button
-                                onClick={() => setShowPreview(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 rounded text-xs font-medium transition-colors"
+                                onClick={() => setShowPreview(!showPreview)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${showPreview ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200'}`}
                             >
-                                <Play size={12} /> Preview
+                                <Play size={12} /> {t.outputPreview}
                             </button>
                         </div>
                     </div>
 
-                    {/* Editor Content */}
-                    <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 relative">
-                        {activeResConfig.mode === 'code' ? (
-                            <MonacoEditor
-                                language="javascript"
-                                value={activeResConfig.script}
-                                onChange={(val) => updateResponseConfig(c => ({ ...c, script: val || '' }))}
-                            />
-                        ) : (
-                            <div className="h-full overflow-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 text-xs text-gray-500 font-medium">
-                                        <tr>
-                                            <th className="p-2 pl-4 border-b border-gray-200 dark:border-gray-700 w-1/4">{t.key}</th>
-                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-20">{t.type}</th>
-                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.mockValue}</th>
-                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.sourcePath}</th>
-                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700">{t.desc}</th>
-                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-10"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-sm">
-                                        {renderSchemaTree(activeResConfig.schema)}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Preview Modal */}
-                    {showPreview && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl w-full max-w-2xl h-[500px] flex flex-col overflow-hidden">
-                                <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
-                                    <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                        <Play size={14} className="text-green-500" /> Preview Transformation
-                                    </h3>
-                                    <button onClick={() => setShowPreview(false)} className="text-gray-500 hover:text-gray-700"><X size={16} /></button>
+                    {/* Main Content Area (Split between Editor and Preview) */}
+                    <div className="flex-1 flex flex-col min-h-0 relative">
+                        {/* 1. Rule Editor */}
+                        <div className={`flex-1 overflow-hidden bg-white dark:bg-gray-900 relative border-b border-gray-200 dark:border-gray-700 ${showPreview ? 'h-1/2' : 'h-full'}`}>
+                            {activeResConfig.mode === 'code' ? (
+                                <MonacoEditor
+                                    language="javascript"
+                                    value={activeResConfig.script}
+                                    onChange={(val) => updateResponseConfig(c => ({ ...c, script: val || '' }))}
+                                />
+                            ) : (
+                                <div className="h-full overflow-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 text-xs text-gray-500 font-medium">
+                                            <tr>
+                                                <th className="p-2 pl-4 border-b border-gray-200 dark:border-gray-700 w-1/4">{t.key}</th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-20">{t.type}</th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.mockValue}</th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.sourcePath}</th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700">{t.desc}</th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-10"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="text-sm">
+                                            {renderSchemaTree(activeResConfig.schema)}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700 overflow-hidden">
-                                    <div className="flex-1 flex flex-col p-2 bg-gray-50 dark:bg-gray-900/50">
-                                        <label className="text-xs font-bold text-gray-500 mb-2 block">Input (Native Response)</label>
-                                        <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
+                            )}
+                        </div>
+
+                        {/* 2. Preview Panel (Conditional) */}
+                        {showPreview && (
+                            <div className="h-1/2 flex flex-col bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+                                <div className="h-8 px-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800">
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2"><Settings size={12} /> {t.runTest} Panel</span>
+                                    <button onClick={runPreview} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold flex items-center gap-1">
+                                        <Play size={10} /> {t.runTest}
+                                    </button>
+                                </div>
+                                <div className="flex-1 flex overflow-hidden">
+                                    {/* Input */}
+                                    <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
+                                        <div className="px-2 py-1 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[10px] text-gray-500">{t.previewInput}</div>
+                                        <div className="flex-1 relative">
                                             <MonacoEditor language="json" value={previewInput} onChange={(v) => setPreviewInput(v || '')} />
                                         </div>
                                     </div>
-                                    <div className="flex-1 flex flex-col p-2 bg-white dark:bg-gray-900">
-                                        <label className="text-xs font-bold text-gray-500 mb-2 block">Output (Encapsulated)</label>
-                                        <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded overflow-hidden relative">
-                                            {previewError ? (
-                                                <div className="p-4 text-red-500 text-xs font-mono whitespace-pre-wrap">{previewError}</div>
-                                            ) : (
-                                                <MonacoEditor language="json" value={previewResult} readOnly={true} />
-                                            )}
+                                    {/* Output */}
+                                    <div className="w-1/2 flex flex-col">
+                                        <div className="px-2 py-1 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[10px] text-gray-500">{t.previewOutput}</div>
+                                        <div className="flex-1 relative overflow-hidden">
+                                            <DebugResultPanel
+                                                data={previewData}
+                                                error={previewError}
+                                                loading={false}
+                                                t={t}
+                                                height="100%"
+                                            />
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
-                                    <button onClick={runPreview} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-bold flex items-center gap-2">
-                                        <Play size={14} /> Run Transformation
-                                    </button>
-                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </>
             )}
         </div>
