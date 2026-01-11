@@ -253,38 +253,11 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 text-sm overflow-hidden">
-            {/* Header Row 1: Name, Tags, Save */}
-            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded text-purple-600 dark:text-purple-400">
-                        <Code2 size={20} />
-                    </div>
-                    <div className="flex-1 max-w-2xl">
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={e => setName(e.target.value)}
-                            className="text-lg font-bold bg-transparent outline-none text-gray-800 dark:text-white w-full placeholder-gray-400"
-                            placeholder={t.basicName}
-                        />
-                    </div>
-                    <div className="w-64">
-                        <TagInput tags={tags} onChange={setTags} />
-                    </div>
-                </div>
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-nebula-600 hover:bg-nebula-700 text-white rounded shadow-sm text-xs font-semibold transition-all disabled:opacity-50"
-                >
-                    <Save size={14} /> {isSaving ? t.saving : t.save}
-                </button>
-            </div>
-
-            {/* Header Row 2: Method, URL, Send */}
-            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center gap-2">
-                <div className="relative w-28">
+        <div className="flex flex-col h-full bg-white dark:bg-gray-900 text-sm overflow-hidden">
+            {/* Top Toolbar: Method, URL, Actions */}
+            <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3 shadow-sm z-10">
+                {/* Method Selector */}
+                <div className="relative w-28 flex-shrink-0">
                     <select
                         value={method}
                         onChange={e => setMethod(e.target.value)}
@@ -297,12 +270,13 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
                     </div>
                 </div>
 
-                <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 focus-within:border-nebula-500 focus-within:ring-1 focus-within:ring-nebula-500 overflow-hidden transition-all">
-                    <div className="flex-shrink-0 border-r border-gray-300 dark:border-gray-600">
+                {/* URL Bar Group */}
+                <div className="flex-1 flex items-center border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 focus-within:border-nebula-500 focus-within:ring-1 focus-within:ring-nebula-500 overflow-hidden transition-all h-9">
+                    <div className="flex-shrink-0 border-r border-gray-300 dark:border-gray-600 h-full flex items-center bg-gray-100 dark:bg-gray-800">
                         <select
                             value={baseUrl}
                             onChange={e => setBaseUrl(e.target.value)}
-                            className="appearance-none bg-transparent px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 outline-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                            className="appearance-none bg-transparent px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 outline-none cursor-pointer hover:text-gray-900 h-full"
                             style={{ textAlignLast: 'center' }}
                         >
                             <option value="TEST">TEST</option>
@@ -315,38 +289,49 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
                         type="text"
                         value={url}
                         onChange={e => setUrl(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-transparent text-gray-800 dark:text-white outline-none text-sm font-mono"
+                        className="flex-1 px-3 py-1 bg-white dark:bg-gray-900 text-gray-800 dark:text-white outline-none text-sm font-mono h-full placeholder-gray-400"
                         placeholder="/path/to/resource"
                     />
                 </div>
 
-                <button className="flex items-center gap-1.5 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm text-xs font-bold transition-all transform active:scale-95">
-                    <Play size={14} fill="currentColor" /> {t.send}
-                </button>
+                {/* Actions */}
+                <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                    <button className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm text-xs font-bold transition-all transform active:scale-95 whitespace-nowrap">
+                        <Play size={14} fill="currentColor" /> {t.send}
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center gap-1.5 px-5 py-2 bg-nebula-600 hover:bg-nebula-700 text-white rounded shadow-sm text-xs font-semibold transition-all disabled:opacity-50 whitespace-nowrap"
+                    >
+                        <Save size={14} /> {isSaving ? t.saving : t.save}
+                    </button>
+                </div>
             </div>
 
-            {/* Main Content Pane */}
-            <div className="flex-1 flex overflow-hidden" ref={resizeRef}>
+            {/* Main Content Split */}
+            <div className="flex-1 flex overflow-hidden relative" ref={resizeRef}>
                 {/* Left Panel: Request Config */}
-                <div className="flex flex-col h-full border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ width: `${leftPanelWidth}%` }}>
-                    <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700 px-2 bg-gray-50/50 dark:bg-gray-800/50">
+                <div className="flex flex-col h-full bg-white dark:bg-gray-900" style={{ width: `${leftPanelWidth}%` }}>
+                    {/* Tabs */}
+                    <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700 px-4 bg-white dark:bg-gray-800 scrollbar-hide pt-2">
                         {[
                             { id: 'info', label: t.info },
                             { id: 'path', label: t.path },
                             { id: 'params', label: t.params },
                             { id: 'body', label: t.body },
-                            { id: 'auth', label: t.auth },
                             { id: 'headers', label: t.headers },
                             { id: 'cookies', label: t.cookies },
-                            { id: 'pre', label: t.pre }, // Using "Pre-Hook" label
-                            { id: 'post', label: t.post }, // Using "Post-Hook" label
+                            { id: 'auth', label: t.auth },
+                            { id: 'pre', label: t.pre },
+                            { id: 'post', label: t.post },
                         ].map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
-                                        ? 'border-nebula-600 text-nebula-600 dark:text-nebula-400'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                                className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.id
+                                    ? 'border-nebula-600 text-nebula-600 dark:text-nebula-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                                     }`}
                             >
                                 {tab.label}
@@ -354,22 +339,47 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
                         ))}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4">
+                    {/* Tab Content */}
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                         {activeTab === 'info' && (
-                            <div className="space-y-4 max-w-3xl">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">{t.basicDesc}</label>
-                                    <textarea
-                                        value={description}
-                                        onChange={e => setDescription(e.target.value)}
-                                        rows={3}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-nebula-500 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">{t.basicUsage}</label>
-                                    <div className="h-[400px] border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
-                                        <RichTextEditor content="" onChange={() => { }} />
+                            <div className="space-y-6 max-w-4xl">
+                                {/* Name & Tags Row */}
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="flex gap-6">
+                                        <div className="flex-1 space-y-1.5">
+                                            <label className="block text-xs font-bold text-gray-500">{t.basicName}</label>
+                                            <input
+                                                type="text"
+                                                value={name}
+                                                onChange={e => setName(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-nebula-500 outline-none transition-shadow"
+                                                placeholder={t.basicName}
+                                            />
+                                        </div>
+                                        <div className="w-1/3 space-y-1.5">
+                                            <label className="block text-xs font-bold text-gray-500">{t.basicTags}</label>
+                                            <div className="min-h-[38px]">
+                                                <TagInput tags={tags} onChange={setTags} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-bold text-gray-500">{t.basicDesc}</label>
+                                        <textarea
+                                            value={description}
+                                            onChange={e => setDescription(e.target.value)}
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-nebula-500 outline-none transition-shadow resize-y"
+                                            placeholder="..."
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="block text-xs font-bold text-gray-500">{t.basicUsage}</label>
+                                        <div className="h-[400px] border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden bg-white">
+                                            <RichTextEditor content="" onChange={() => { }} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -445,29 +455,32 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
 
                 {/* Right Panel: Response & Schema */}
                 <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
-                    <div className="px-4 py-3 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wide">{t.responseTransform}</h3>
-                        <div className="flex items-center gap-2">
-                            {(['200', '400', '500'] as const).map(code => (
-                                <button
-                                    key={code}
-                                    onClick={() => setActiveStatusCode(code)}
-                                    className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${activeStatusCode === code
-                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                            : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                                        }`}
-                                >
-                                    {code}
-                                </button>
-                            ))}
-                            <button className="text-nebula-600 hover:bg-nebula-50 rounded p-1"><Plus size={14} /></button>
+                    <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-nebula-600 dark:text-nebula-400 font-bold text-xs uppercase tracking-wide">
+                            <Code2 size={16} />
+                            <span>{t.responseTransform || 'Response'}</span>
                         </div>
                     </div>
 
+                    <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 overflow-x-auto">
+                        {(['200', '400', '500'] as const).map(code => (
+                            <button
+                                key={code}
+                                onClick={() => setActiveStatusCode(code)}
+                                className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all border ${activeStatusCode === code
+                                    ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+                                    }`}
+                            >
+                                {code} {statusCodes.find(s => s.code === code)?.name}
+                            </button>
+                        ))}
+                        <button className="flex items-center gap-1 px-2 py-1.5 text-xs text-gray-500 hover:text-nebula-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors">
+                            <Plus size={14} />
+                        </button>
+                    </div>
+
                     <div className="flex-1 overflow-hidden flex flex-col">
-                        <div className="p-2 border-b border-gray-100 dark:border-gray-800 flex gap-2">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase py-1 px-2">{t.visualMode}</span>
-                        </div>
                         <div className="flex-1 overflow-auto bg-white dark:bg-gray-900">
                             <ResponseSchemaEditor
                                 schema={responseSchema}
