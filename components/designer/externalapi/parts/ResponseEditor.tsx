@@ -6,12 +6,16 @@ import { StatusCodeConfig, ResponseNode } from '../common/types';
 interface ResponseEditorProps {
     responseConfigs: StatusCodeConfig[];
     onChange: (configs: StatusCodeConfig[]) => void;
+    isEnabled: boolean;
+    onToggleEnabled: (enabled: boolean) => void;
     t: any;
 }
 
 const ResponseEditor: React.FC<ResponseEditorProps> = ({
     responseConfigs,
     onChange,
+    isEnabled,
+    onToggleEnabled,
     t
 }) => {
     const [activeStatusCode, setActiveStatusCode] = useState('200');
@@ -69,11 +73,11 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     };
 
     const handleAddStatus = () => {
-        const code = prompt("Enter HTTP Status Code (e.g., 201, 500):");
+        const code = prompt("Enter HTTP Status or specific value (e.g. 200, or 'success'):");
         if (code && !responseConfigs.find(c => c.code === code)) {
             const newConfig: StatusCodeConfig = {
                 code,
-                name: 'New Status',
+                name: 'New Condition',
                 mode: 'visual',
                 schema: [{ id: `root_${code}`, targetKey: 'root', type: 'object', required: true, sourcePath: '$', mock: '', desc: 'Root', children: [] }],
                 script: ''
@@ -182,74 +186,94 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                     <Code2 size={14} className="text-purple-500" />
                     {t.responseTransform}
                 </span>
-            </div>
-
-            {/* Status Tabs */}
-            <div className="px-2 pt-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto no-scrollbar">
-                {responseConfigs.map(c => (
-                    <button
-                        key={c.code}
-                        onClick={() => setActiveStatusCode(c.code)}
-                        className={`
-                            px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r relative top-[1px]
-                            ${activeStatusCode === c.code
-                                ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border-gray-200 dark:border-gray-700'
-                                : 'bg-gray-200 dark:bg-gray-800/50 text-gray-500 border-transparent hover:bg-gray-300 dark:hover:bg-gray-700'
-                            }
-                        `}
-                    >
-                        <span className="font-bold mr-1">{c.code}</span> {c.name}
-                    </button>
-                ))}
-                <button onClick={handleAddStatus} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500" title={t.addStatus}><Plus size={14} /></button>
-            </div>
-
-            {/* Mode Toggle & Toolbar */}
-            <div className="bg-white dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <div className="flex bg-gray-100 dark:bg-gray-700 rounded p-0.5">
-                    <button
-                        onClick={() => updateResponseConfig(c => ({ ...c, mode: 'visual' }))}
-                        className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'visual' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
-                    >
-                        {t.visualMode}
-                    </button>
-                    <button
-                        onClick={() => updateResponseConfig(c => ({ ...c, mode: 'code' }))}
-                        className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'code' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
-                    >
-                        {t.codeMode}
-                    </button>
+                <div className="flex items-center gap-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" checked={isEnabled} onChange={(e) => onToggleEnabled(e.target.checked)} className="sr-only peer" />
+                        <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-gray-600 peer-checked:bg-nebula-600"></div>
+                        <span className="ml-2 text-xs font-medium text-gray-900 dark:text-gray-300">{isEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
                 </div>
             </div>
 
-            {/* Editor Content */}
-            <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 relative">
-                {activeResConfig.mode === 'code' ? (
-                    <MonacoEditor
-                        language="javascript"
-                        value={activeResConfig.script}
-                        onChange={(val) => updateResponseConfig(c => ({ ...c, script: val || '' }))}
-                    />
-                ) : (
-                    <div className="h-full overflow-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 text-xs text-gray-500 font-medium">
-                                <tr>
-                                    <th className="p-2 pl-4 border-b border-gray-200 dark:border-gray-700 w-1/4">{t.key}</th>
-                                    <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-20">{t.type}</th>
-                                    <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.mockValue}</th>
-                                    <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.sourcePath}</th>
-                                    <th className="p-2 border-b border-gray-200 dark:border-gray-700">{t.desc}</th>
-                                    <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-sm">
-                                {renderSchemaTree(activeResConfig.schema)}
-                            </tbody>
-                        </table>
+            {!isEnabled ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 text-xs p-8 text-center bg-gray-50/50 dark:bg-gray-800/50">
+                    <Code2 size={32} className="mb-2 opacity-20" />
+                    <p>Response encapsulation is disabled.</p>
+                    <p className="opacity-70 mt-1">Enable it to configure secondary packaging for return data.</p>
+                </div>
+            ) : (
+                <>
+                    {/* Status Tabs */}
+                    <div className="px-2 pt-2 bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto no-scrollbar">
+                        {responseConfigs.map(c => (
+                            <button
+                                key={c.code}
+                                onClick={() => setActiveStatusCode(c.code)}
+                                className={`
+                                    px-3 py-1.5 text-xs font-medium rounded-t-lg border-t border-l border-r relative top-[1px]
+                                    ${activeStatusCode === c.code
+                                        ? 'bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border-gray-200 dark:border-gray-700'
+                                        : 'bg-gray-200 dark:bg-gray-800/50 text-gray-500 border-transparent hover:bg-gray-300 dark:hover:bg-gray-700'
+                                    }
+                                `}
+                            >
+                                <span className="font-bold mr-1">{c.code}</span> {c.name}
+                            </button>
+                        ))}
+                        <button onClick={handleAddStatus} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500" title={t.addStatus}><Plus size={14} /></button>
                     </div>
-                )}
-            </div>
+
+                    {/* Mode Toggle & Toolbar */}
+                    <div className="bg-white dark:bg-gray-800 p-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                        <div className="flex bg-gray-100 dark:bg-gray-700 rounded p-0.5">
+                            <button
+                                onClick={() => updateResponseConfig(c => ({ ...c, mode: 'visual' }))}
+                                className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'visual' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
+                            >
+                                {t.visualMode}
+                            </button>
+                            <button
+                                onClick={() => updateResponseConfig(c => ({ ...c, mode: 'code' }))}
+                                className={`px-3 py-1 text-xs rounded transition-colors ${activeResConfig.mode === 'code' ? 'bg-white dark:bg-gray-600 shadow text-nebula-600 dark:text-white' : 'text-gray-500'}`}
+                            >
+                                {t.codeMode}
+                            </button>
+                        </div>
+                        <div className="text-[10px] text-gray-400 italic px-2">
+                            Condition: {activeStatusCode}
+                        </div>
+                    </div>
+
+                    {/* Editor Content */}
+                    <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 relative">
+                        {activeResConfig.mode === 'code' ? (
+                            <MonacoEditor
+                                language="javascript"
+                                value={activeResConfig.script}
+                                onChange={(val) => updateResponseConfig(c => ({ ...c, script: val || '' }))}
+                            />
+                        ) : (
+                            <div className="h-full overflow-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10 text-xs text-gray-500 font-medium">
+                                        <tr>
+                                            <th className="p-2 pl-4 border-b border-gray-200 dark:border-gray-700 w-1/4">{t.key}</th>
+                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-20">{t.type}</th>
+                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.mockValue}</th>
+                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.sourcePath}</th>
+                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700">{t.desc}</th>
+                                            <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-sm">
+                                        {renderSchemaTree(activeResConfig.schema)}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };
