@@ -12,6 +12,7 @@ interface TopToolbarProps {
     };
     setUrlConfig: (config: any) => void;
     handleSave: () => void;
+    onSend: () => void;
     loading: boolean;
     t: any;
 }
@@ -22,6 +23,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
     urlConfig,
     setUrlConfig,
     handleSave,
+    onSend,
     loading,
     t
 }) => {
@@ -70,7 +72,7 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
                     className="flex-1 h-full px-3 border border-l-0 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-white outline-none focus:ring-1 focus:ring-nebula-500 font-mono text-sm"
                 />
 
-                <button className="h-full px-6 bg-nebula-600 hover:bg-nebula-700 text-white font-medium text-xs rounded-r-md transition-colors flex items-center gap-2">
+                <button onClick={onSend} className="h-full px-6 bg-nebula-600 hover:bg-nebula-700 text-white font-medium text-xs rounded-r-md transition-colors flex items-center gap-2">
                     {t.send} <Play size={12} fill="currentColor" />
                 </button>
             </div>

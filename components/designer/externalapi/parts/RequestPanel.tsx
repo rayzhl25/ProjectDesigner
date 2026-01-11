@@ -279,7 +279,7 @@ const RequestPanel: React.FC<RequestPanelProps> = ({
 
     return (
         <div
-            className="flex flex-col border-r border-gray-200 dark:border-gray-700 min-w-[450px]"
+            className="flex flex-col border-gray-200 dark:border-gray-700 min-w-[450px]"
             style={{ width: `${leftWidth}%` }}
         >
             {/* Tabs */}

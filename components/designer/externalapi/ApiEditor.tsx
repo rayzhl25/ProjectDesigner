@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { saveApiConfig } from '../../../services/mockService';
 import { texts } from './common/texts';
 import { Param, StatusCodeConfig, AuthConfig, JavaHookConfig } from './common/types';
@@ -6,6 +6,8 @@ import { Param, StatusCodeConfig, AuthConfig, JavaHookConfig } from './common/ty
 import TopToolbar from './parts/TopToolbar';
 import RequestPanel from './parts/RequestPanel';
 import ResponseEditor from './parts/ResponseEditor';
+import DebugResultPanel from './parts/DebugResultPanel';
+import MonacoEditor from '../editors/MonacoEditor';
 
 interface ApiEditorProps {
     file: any;
@@ -16,9 +18,14 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
     const [loading, setLoading] = useState(false);
     const [activeReqTab, setActiveReqTab] = useState<'info' | 'path' | 'params' | 'body' | 'headers' | 'cookies' | 'auth' | 'hooks'>('info');
 
-    // Layout Resizing
+    // Layout Resizing (Horizontal Split - Left/Right)
     const [leftWidth, setLeftWidth] = useState(60); // Percentage
-    const [isResizing, setIsResizing] = useState(false);
+    const [isResizingH, setIsResizingH] = useState(false);
+
+    // Layout Resizing (Vertical Split - Request/Response)
+    const [reqPanelHeight, setReqPanelHeight] = useState(60); // Percentage
+    const [isResizingV, setIsResizingV] = useState(false);
+    const leftColRef = useRef<HTMLDivElement>(null);
 
     // Method (Restored state)
     const [method, setMethod] = useState('POST');
@@ -39,7 +46,7 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
         name: file?.title || 'New Interface',
         tags: [] as string[],
         description: '',
-        usage: '' // Added Rich Text content
+        usage: ''
     });
 
     // Auth & Hooks
@@ -111,21 +118,30 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
         }
     ]);
 
+    // Debug State
+    const [debugData, setDebugData] = useState<any>(null);
+    const [debugError, setDebugError] = useState<string | undefined>(undefined);
+    const [debugLoading, setDebugLoading] = useState(false);
+
+    // Save Modal State
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [saveJsonContent, setSaveJsonContent] = useState('');
+
     const t = texts[lang];
 
-    // Resizing Logic
+    // Resizing Logic (Horizontal)
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizing) return;
+            if (!isResizingH) return;
             const totalWidth = document.body.clientWidth;
             const newPercent = (e.clientX / totalWidth) * 100;
             if (newPercent > 20 && newPercent < 80) {
                 setLeftWidth(newPercent);
             }
         };
-        const handleMouseUp = () => setIsResizing(false);
+        const handleMouseUp = () => setIsResizingH(false);
 
-        if (isResizing) {
+        if (isResizingH) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
             document.body.style.cursor = 'col-resize';
@@ -139,7 +155,38 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isResizing]);
+    }, [isResizingH]);
+
+    // Resizing Logic (Vertical - Request/Debug)
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingV || !leftColRef.current) return;
+            const dims = leftColRef.current.getBoundingClientRect();
+            // Calculate percentage relative to left column height
+            const relativeY = e.clientY - dims.top;
+            const newPercent = (relativeY / dims.height) * 100;
+            if (newPercent > 20 && newPercent < 90) {
+                setReqPanelHeight(newPercent);
+            }
+        };
+        const handleMouseUp = () => setIsResizingV(false);
+
+        if (isResizingV) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        } else {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizingV]);
+
 
     // Initial Path Parsing (Heuristic for URL -> Params)
     useEffect(() => {
@@ -160,18 +207,122 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
         }
     }, [urlConfig.path]);
 
-    const handleSave = async () => {
+    const getFullConfig = () => {
+        return {
+            basicInfo, urlConfig, method, bodyType, authConfig, preHook, postHook,
+            params: { path: pathParams, query: queryParams, headers, cookies, body: bodyContent },
+            responseConfigs
+        };
+    };
+
+    const handleOpenSave = () => {
+        const config = getFullConfig();
+        setSaveJsonContent(JSON.stringify(config, null, 2));
+        setShowSaveModal(true);
+    };
+
+    const handleConfirmSave = async () => {
         setLoading(true);
         try {
-            await saveApiConfig({
-                basicInfo, urlConfig, method, bodyType, authConfig, preHook, postHook,
-                params: { path: pathParams, query: queryParams, headers, cookies, body: bodyContent },
-                responseConfigs
-            });
+            const config = getFullConfig();
+            await saveApiConfig(config);
+            setShowSaveModal(false);
         } catch (e) {
             console.error(e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSend = async () => {
+        setDebugLoading(true);
+        setDebugError(undefined);
+        setDebugData(null);
+
+        try {
+            // 1. Base URL
+            let currentUrl = urlConfig.baseUrlType === 'system' ? urlConfig.systemBaseUrl : urlConfig.customBaseUrl;
+            // Remove trailing slash
+            if (currentUrl.endsWith('/')) currentUrl = currentUrl.slice(0, -1);
+            let path = urlConfig.path;
+
+            // 2. Path Params
+            pathParams.forEach(p => {
+                if (p.value) {
+                    path = path.replace(`:${p.key}`, p.value);
+                }
+            });
+            // Ensure path starts with slash
+            if (!path.startsWith('/')) path = '/' + path;
+
+            const urlObj = new URL(currentUrl + path);
+
+            // 3. Query Params
+            queryParams.forEach(p => {
+                if (p.key && p.value) {
+                    urlObj.searchParams.append(p.key, p.value);
+                }
+            });
+
+            // 4. Headers
+            const reqHeaders: Record<string, string> = {};
+            headers.forEach(h => {
+                if (h.key && h.value) reqHeaders[h.key] = h.value;
+            });
+
+            // 5. Body
+            let reqBody: any = undefined;
+            if (method !== 'GET' && method !== 'HEAD') {
+                if (bodyType === 'json') {
+                    reqHeaders['Content-Type'] = 'application/json';
+                    reqBody = bodyContent.json;
+                } else if (bodyType === 'xml') {
+                    reqHeaders['Content-Type'] = 'application/xml';
+                    reqBody = bodyContent.xml;
+                } else if (bodyType === 'x-www-form-urlencoded') {
+                    reqHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+                    const params = new URLSearchParams();
+                    urlEncodedParams.forEach(p => { if (p.key) params.append(p.key, p.value); });
+                    reqBody = params.toString();
+                } else if (bodyType === 'form-data') {
+                    // Start multipart manual construction or use FormData (fetch handles boundary)
+                    const formData = new FormData();
+                    formDataParams.forEach(p => { if (p.key) formData.append(p.key, p.value); });
+                    reqBody = formData;
+                    // Note: Do not manually set Content-Type for FormData, let browser set boundary
+                } else if (bodyType === 'raw') {
+                    reqBody = bodyContent.raw;
+                } else if (bodyType === 'graphql') {
+                    reqHeaders['Content-Type'] = 'application/json';
+                    reqBody = JSON.stringify({ query: bodyContent.graphqlQuery, variables: JSON.parse(bodyContent.graphqlVars || '{}') });
+                }
+            }
+
+            const response = await fetch(urlObj.toString(), {
+                method,
+                headers: reqHeaders,
+                body: reqBody
+            });
+
+            const text = await response.text();
+
+            // Try to parse JSON
+            try {
+                const json = JSON.parse(text);
+                setDebugData(json);
+            } catch {
+                setDebugData(text);
+            }
+
+            if (!response.ok) {
+                setDebugError(`Status: ${response.status} ${response.statusText}`);
+            }
+
+        } catch (e: any) {
+            console.error(e);
+            setDebugError(e.message || 'Unknown Error');
+        } finally {
+            setDebugLoading(false);
         }
     };
 
@@ -182,58 +333,106 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
                 setMethod={setMethod}
                 urlConfig={urlConfig}
                 setUrlConfig={setUrlConfig}
-                handleSave={handleSave}
+                handleSave={handleOpenSave}
+                onSend={handleSend}
                 loading={loading}
                 t={t}
             />
 
             <div className="flex-1 flex overflow-hidden relative">
-                <RequestPanel
-                    leftWidth={leftWidth}
-                    activeReqTab={activeReqTab}
-                    setActiveReqTab={setActiveReqTab}
-                    basicInfo={basicInfo}
-                    setBasicInfo={setBasicInfo}
-                    pathParams={pathParams}
-                    setPathParams={setPathParams}
-                    queryParams={queryParams}
-                    setQueryParams={setQueryParams}
-                    headers={headers}
-                    setHeaders={setHeaders}
-                    cookies={cookies}
-                    setCookies={setCookies}
-                    formDataParams={formDataParams}
-                    setFormDataParams={setFormDataParams}
-                    urlEncodedParams={urlEncodedParams}
-                    setUrlEncodedParams={setUrlEncodedParams}
-                    bodyType={bodyType}
-                    setBodyType={setBodyType}
-                    bodyContent={bodyContent}
-                    setBodyContent={setBodyContent}
-                    authConfig={authConfig}
-                    setAuthConfig={setAuthConfig}
-                    preHook={preHook}
-                    setPreHook={setPreHook}
-                    postHook={postHook}
-                    setPostHook={setPostHook}
-                    urlConfig={urlConfig}
-                    setUrlConfig={setUrlConfig}
-                    t={t}
-                />
+                {/* LEFT COLUMN */}
+                <div
+                    ref={leftColRef}
+                    className="flex flex-col border-r border-gray-200 dark:border-gray-700 min-w-[450px]"
+                    style={{ width: `${leftWidth}%` }}
+                >
+                    <div className="flex flex-col w-full relative" style={{ height: `${reqPanelHeight}%` }}>
+                        <RequestPanel
+                            leftWidth={100} // RequestPanel thinks it's full width of its container
+                            activeReqTab={activeReqTab}
+                            setActiveReqTab={setActiveReqTab}
+                            basicInfo={basicInfo}
+                            setBasicInfo={setBasicInfo}
+                            pathParams={pathParams}
+                            setPathParams={setPathParams}
+                            queryParams={queryParams}
+                            setQueryParams={setQueryParams}
+                            headers={headers}
+                            setHeaders={setHeaders}
+                            cookies={cookies}
+                            setCookies={setCookies}
+                            formDataParams={formDataParams}
+                            setFormDataParams={setFormDataParams}
+                            urlEncodedParams={urlEncodedParams}
+                            setUrlEncodedParams={setUrlEncodedParams}
+                            bodyType={bodyType}
+                            setBodyType={setBodyType}
+                            bodyContent={bodyContent}
+                            setBodyContent={setBodyContent}
+                            authConfig={authConfig}
+                            setAuthConfig={setAuthConfig}
+                            preHook={preHook}
+                            setPreHook={setPreHook}
+                            postHook={postHook}
+                            setPostHook={setPostHook}
+                            urlConfig={urlConfig}
+                            setUrlConfig={setUrlConfig}
+                            t={t}
+                        />
+                        {/* Vertical Resizer Handle */}
+                        <div
+                            className="absolute bottom-0 left-0 right-0 h-1 cursor-row-resize hover:bg-nebula-500 z-50 transition-colors bg-gray-200 dark:bg-gray-700 hover:h-1.5"
+                            onMouseDown={() => setIsResizingV(true)}
+                        ></div>
+                    </div>
 
-                {/* Resizer Handle */}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <DebugResultPanel
+                            data={debugData}
+                            error={debugError}
+                            loading={debugLoading}
+                            t={t}
+                            height="100%"
+                        />
+                    </div>
+                </div>
+
+
+                {/* Horizontal Resizer Handle */}
                 <div
                     className="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-nebula-500 z-50 transition-colors bg-transparent hover:w-1.5"
                     style={{ left: `${leftWidth}%` }}
-                    onMouseDown={() => setIsResizing(true)}
+                    onMouseDown={() => setIsResizingH(true)}
                 ></div>
 
+                {/* RIGHT COLUMN */}
                 <ResponseEditor
                     responseConfigs={responseConfigs}
                     onChange={setResponseConfigs}
                     t={t}
                 />
             </div>
+
+            {/* Save Confirmation Modal */}
+            {showSaveModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[600px] max-h-[85vh]">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                            <h3 className="font-bold text-gray-800 dark:text-white">Confirm Configuration</h3>
+                            <div className="text-xs text-gray-500">Check the JSON payload before saving</div>
+                        </div>
+                        <div className="flex-1 border-b border-gray-200 dark:border-gray-700 relative">
+                            <MonacoEditor language="json" value={saveJsonContent} readOnly={true} />
+                        </div>
+                        <div className="p-4 bg-gray-50 dark:bg-gray-800 flex justify-end gap-3">
+                            <button onClick={() => setShowSaveModal(false)} className="px-4 py-2 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-medium">{t.cancel}</button>
+                            <button onClick={handleConfirmSave} disabled={loading} className="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-medium flex items-center gap-2">
+                                {loading ? t.saving : 'Submit & Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
