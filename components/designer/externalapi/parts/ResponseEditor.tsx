@@ -10,6 +10,7 @@ interface ResponseEditorProps {
     isEnabled: boolean;
     onToggleEnabled: (enabled: boolean) => void;
     t: any;
+    nativeData?: any;
 }
 
 const ResponseEditor: React.FC<ResponseEditorProps> = ({
@@ -17,16 +18,21 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     onChange,
     isEnabled,
     onToggleEnabled,
-    t
+    t,
+    nativeData
 }) => {
     const [activeRuleId, setActiveRuleId] = useState<string>('');
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root', 'root_err']));
 
     // Preview State
     const [showPreview, setShowPreview] = useState(false);
-    const [previewInput, setPreviewInput] = useState('{\n  "status": {\n    "code": 200,\n    "message": "success"\n  },\n  "data": {\n    "id": 123,\n    "name": "Test Item"\n  }\n}');
     const [previewData, setPreviewData] = useState<any>(null);
     const [previewError, setPreviewError] = useState<string | undefined>(undefined);
+
+    // Resizing State
+    const [previewHeight, setPreviewHeight] = useState(40);
+    const [isResizingPreview, setIsResizingPreview] = useState(false);
+    const splitContainerRef = React.useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (responseConfigs.length > 0 && !activeRuleId) {
@@ -43,6 +49,47 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
     const updateResponseConfig = (updater: (config: StatusCodeConfig) => StatusCodeConfig) => {
         onChange(responseConfigs.map(c => c.id === activeRuleId ? updater(c) : c));
     };
+
+    // Resizing Logic
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isResizingPreview || !splitContainerRef.current) return;
+            const containerRect = splitContainerRef.current.getBoundingClientRect();
+            // Calculate height from bottom
+            const newHeightPx = containerRect.bottom - e.clientY;
+            const newPercent = (newHeightPx / containerRect.height) * 100;
+
+            if (newPercent > 10 && newPercent < 90) {
+                setPreviewHeight(newPercent);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsResizingPreview(false);
+        };
+
+        if (isResizingPreview) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        } else {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizingPreview]);
+
+    // Auto-run preview when dependencies change
+    useEffect(() => {
+        if (showPreview) {
+            runPreview();
+        }
+    }, [showPreview, nativeData, activeResConfig, activeResConfig?.script, activeResConfig?.mode]);
 
     const toggleNodeExpand = (nodeId: string) => {
         setExpandedNodes(prev => {
@@ -114,9 +161,17 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
 
     const runPreview = () => {
         setPreviewError(undefined);
-        setPreviewData(null);
+
+        if (!nativeData) {
+            setPreviewData({ _note: "No native response data available. Please send a request first to preview transformation." });
+            return;
+        }
+
         try {
-            const inputData = JSON.parse(previewInput);
+            // Clone to check if it matches, but preview forces execution on current rule
+            const inputData = nativeData; // Assuming nativeData is already object/parsed. If string, parse it.
+            // But debugData in ApiEditor is usually object or string.
+
             if (activeResConfig.mode === 'code') {
                 // eslint-disable-next-line no-new-func
                 const transformFunc = new Function('data', activeResConfig.script + '\nreturn transform(data);');
@@ -142,6 +197,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
             return (
                 <React.Fragment key={node.id}>
                     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 group text-xs">
+                        {/* ... existing columns ... */}
                         <td className="p-2 pl-4 border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center" style={{ paddingLeft: `${level * 20}px` }}>
                                 {hasChildren && (node.type === 'object' || node.type === 'array') ? (
@@ -228,7 +284,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
 
     return (
         <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-800 min-w-0 border-l border-gray-200 dark:border-gray-700 h-full overflow-hidden">
-            {/* Header */}
+            {/* ... Header & Tabs ... */}
             <div className="h-10 px-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800 flex-shrink-0">
                 <span className="text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2">
                     <Code2 size={14} className="text-purple-500" />
@@ -357,9 +413,9 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                     </div>
 
                     {/* Main Content Area (Split between Editor and Preview) */}
-                    <div className="flex-1 flex flex-col min-h-0 relative">
+                    <div className="flex-1 flex flex-col min-h-0 relative" ref={splitContainerRef}>
                         {/* 1. Rule Editor */}
-                        <div className={`flex-1 overflow-hidden bg-white dark:bg-gray-900 relative border-b border-gray-200 dark:border-gray-700 ${showPreview ? 'h-1/2' : 'h-full'}`}>
+                        <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 relative border-b border-gray-200 dark:border-gray-700">
                             {activeResConfig.mode === 'code' ? (
                                 <MonacoEditor
                                     language="javascript"
@@ -376,7 +432,7 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
                                                 <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.mockValue}</th>
                                                 <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-1/5">{t.sourcePath}</th>
                                                 <th className="p-2 border-b border-gray-200 dark:border-gray-700">{t.desc}</th>
-                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-10"></th>
+                                                <th className="p-2 border-b border-gray-200 dark:border-gray-700 w-16"></th>
                                             </tr>
                                         </thead>
                                         <tbody className="text-sm">
@@ -389,24 +445,19 @@ const ResponseEditor: React.FC<ResponseEditorProps> = ({
 
                         {/* 2. Preview Panel (Conditional) */}
                         {showPreview && (
-                            <div className="h-1/2 flex flex-col bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                                <div className="h-8 px-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-100 dark:bg-gray-800">
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2"><Settings size={12} /> {t.runTest} Panel</span>
-                                    <button onClick={runPreview} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold flex items-center gap-1">
-                                        <Play size={10} /> {t.runTest}
-                                    </button>
-                                </div>
+                            <div
+                                className="flex flex-col bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] relative"
+                                style={{ height: `${previewHeight}%` }}
+                            >
+                                {/* Resizer Handle */}
+                                <div
+                                    className="absolute top-0 left-0 right-0 h-1 cursor-row-resize hover:bg-nebula-500 z-50 transition-colors bg-transparent hover:h-1.5 -mt-0.5"
+                                    onMouseDown={() => setIsResizingPreview(true)}
+                                ></div>
+
                                 <div className="flex-1 flex overflow-hidden">
-                                    {/* Input */}
-                                    <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
-                                        <div className="px-2 py-1 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[10px] text-gray-500">{t.previewInput}</div>
-                                        <div className="flex-1 relative">
-                                            <MonacoEditor language="json" value={previewInput} onChange={(v) => setPreviewInput(v || '')} />
-                                        </div>
-                                    </div>
-                                    {/* Output */}
-                                    <div className="w-1/2 flex flex-col">
-                                        <div className="px-2 py-1 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-[10px] text-gray-500">{t.previewOutput}</div>
+                                    {/* Output Only */}
+                                    <div className="w-full flex flex-col">
                                         <div className="flex-1 relative overflow-hidden">
                                             <DebugResultPanel
                                                 data={previewData}

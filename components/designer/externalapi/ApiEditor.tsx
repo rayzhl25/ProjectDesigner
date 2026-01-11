@@ -467,7 +467,7 @@ function transform(data) {
                     className="flex flex-col border-r border-gray-200 dark:border-gray-700 min-w-[450px]"
                     style={{ width: `${leftWidth}%` }}
                 >
-                    <div className="flex flex-col w-full relative" style={{ height: `${reqPanelHeight}%` }}>
+                    <div className="flex flex-col w-full relative overflow-hidden" style={{ height: `${reqPanelHeight}%` }}>
                         <RequestPanel
                             leftWidth={100} // RequestPanel thinks it's full width of its container
                             activeReqTab={activeReqTab}
@@ -533,6 +533,7 @@ function transform(data) {
                     isEnabled={isTransformEnabled}
                     onToggleEnabled={setIsTransformEnabled}
                     t={t}
+                    nativeData={debugData}
                 />
             </div>
 
