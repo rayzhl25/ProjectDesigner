@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import {
-   Database, FileText, Download, Upload, Info, Search, Save, Zap
+   Database, FileText, Download, Upload, Info, Search, Save, Zap, X
 } from 'lucide-react';
 import TableDataView from './table/TableDataView';
 import TableStructureView from './table/TableStructureView';
@@ -62,6 +62,36 @@ const TableDesigner: React.FC<TableDesignerProps> = ({ file, readOnly = false })
       }));
       setRows(newRows);
    }, [file.id]);
+
+   const generateDDL = () => {
+      let sql = `CREATE TABLE \`${tableMetadata.name}\` (\n`;
+      const lines = columns.map(col => {
+         let line = `  \`${col.name}\` ${col.type}`;
+         if (col.length && !['DATETIME', 'DATE', 'TIMESTAMP', 'TEXT', 'LONGTEXT', 'JSON', 'BLOB'].includes(col.type)) {
+            line += `(${col.length})`;
+         }
+         if (col.nn) line += ` NOT NULL`; else line += ` NULL`;
+         if (col.ai) line += ` AUTO_INCREMENT`;
+         if (col.default) {
+            if (col.default.toUpperCase() === 'CURRENT_TIMESTAMP') line += ` DEFAULT CURRENT_TIMESTAMP`;
+            else line += ` DEFAULT '${col.default}'`;
+         }
+         if (col.comment) line += ` COMMENT '${col.comment}'`;
+         return line;
+      });
+
+      if (columns.some(c => c.pk)) {
+         const pks = columns.filter(c => c.pk).map(c => `\`${c.name}\``).join(', ');
+         lines.push(`  PRIMARY KEY (${pks})`);
+      }
+
+      sql += lines.join(',\n');
+      sql += `\n) ENGINE=${tableMetadata.engine} DEFAULT CHARSET=${tableMetadata.charset}`;
+      if (tableMetadata.comment) sql += ` COMMENT='${tableMetadata.comment}'`;
+      sql += `;`;
+
+      return sql;
+   };
 
    const handleSave = () => {
       // Logic handles both Save Structure and Gen CRUD based on viewMode or context
@@ -359,6 +389,93 @@ const TableDesigner: React.FC<TableDesignerProps> = ({ file, readOnly = false })
                         className="px-6 py-2 bg-nebula-600 text-white rounded font-medium hover:bg-nebula-700 transition-colors flex items-center gap-2"
                      >
                         <Zap size={14} /> Generate
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* DDL Modal */}
+         {showDDL && (
+            <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col h-[500px]">
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                     <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Table DDL</h3>
+                     <button onClick={() => setShowDDL(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={20} />
+                     </button>
+                  </div>
+                  <div className="flex-1 p-0 overflow-hidden relative group">
+                     <textarea
+                        readOnly
+                        className="w-full h-full p-4 font-mono text-xs resize-none bg-gray-50 dark:bg-gray-900 border-none outline-none text-gray-800 dark:text-gray-200"
+                        value={generateDDL()}
+                     />
+                  </div>
+                  <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end gap-2">
+                     <button onClick={() => setShowDDL(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-200 font-medium text-xs">Close</button>
+                     <button onClick={() => { navigator.clipboard.writeText(generateDDL()); alert('Copied!'); }} className="px-4 py-2 bg-nebula-600 text-white rounded font-medium text-xs hover:bg-nebula-700">Copy SQL</button>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Export Modal */}
+         {showExportModal && (
+            <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                  <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">Export Data</h3>
+                  <div className="space-y-4">
+                     <div className="space-y-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase">Format</label>
+                        <select className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 text-sm outline-none">
+                           <option value="sql">SQL Insert Statements</option>
+                           <option value="csv">CSV (Comma Separated)</option>
+                           <option value="json">JSON</option>
+                           <option value="excel">Excel (.xlsx)</option>
+                        </select>
+                     </div>
+                     <div className="space-y-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase">Scope</label>
+                        <div className="flex gap-4">
+                           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                              <input type="radio" name="scope" defaultChecked /> Current Page
+                           </label>
+                           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                              <input type="radio" name="scope" /> All Data
+                           </label>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-2">
+                     <button onClick={() => setShowExportModal(false)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200">Cancel</button>
+                     <button onClick={() => { alert('Export started...'); setShowExportModal(false); }} className="px-4 py-2 bg-nebula-600 text-white rounded hover:bg-nebula-700 flex items-center gap-2">
+                        <Download size={14} /> Export
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Import Modal */}
+         {showImportModal && (
+            <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                  <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">Import Data</h3>
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 flex flex-col items-center justify-center text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group">
+                     <Upload size={32} className="text-gray-400 group-hover:text-nebula-500 transition-colors mb-2" />
+                     <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Click to upload or drag & drop</p>
+                     <p className="text-xs text-gray-400 mt-1">supports .sql, .csv, .json, .xlsx</p>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-2">
+                     <label className="flex items-center gap-2 text-xs text-gray-500">
+                        <input type="checkbox" className="rounded border-gray-300" /> Truncate table before import
+                     </label>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-2">
+                     <button onClick={() => setShowImportModal(false)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200">Cancel</button>
+                     <button onClick={() => { alert('Import Processed'); setShowImportModal(false); }} className="px-4 py-2 bg-nebula-600 text-white rounded hover:bg-nebula-700 flex items-center gap-2">
+                        <Upload size={14} /> Import
                      </button>
                   </div>
                </div>
