@@ -42,10 +42,10 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ language, value, onChange, 
         theme={theme}
         onChange={onChange}
         loading={
-            <div className="flex items-center justify-center h-full w-full text-gray-500 gap-2">
-                <Loader2 className="animate-spin" size={20} />
-                <span>Loading Editor...</span>
-            </div>
+          <div className="flex items-center justify-center h-full w-full text-gray-500 gap-2">
+            <Loader2 className="animate-spin" size={20} />
+            <span>Loading Editor...</span>
+          </div>
         }
         options={{
           readOnly,
@@ -58,7 +58,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({ language, value, onChange, 
           smoothScrolling: true,
           cursorBlinking: 'smooth',
           lineNumbers: 'on',
-          renderLineHighlight: 'all',
+          renderLineHighlight: 'none',
         }}
       />
     </div>
