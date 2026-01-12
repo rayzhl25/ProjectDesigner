@@ -41,6 +41,122 @@ interface RequestPanelProps {
     t: any;
 }
 
+// --- ParamTable Component ---
+interface ParamTableProps {
+    data: Param[];
+    setter: React.Dispatch<React.SetStateAction<Param[]>>;
+    showType?: boolean;
+    t: any;
+    onBatchEdit?: () => void;
+    listName?: string;
+    // Special prop for Path Params URL sync
+    isPathParams?: boolean;
+    setUrlConfig?: React.Dispatch<React.SetStateAction<any>>;
+}
+
+const ParamTable: React.FC<ParamTableProps> = ({ data, setter, showType = true, t, onBatchEdit, listName, isPathParams, setUrlConfig }) => {
+    // Handlers
+    const addParam = () => {
+        const newKey = isPathParams ? 'newParam' : '';
+        const newParam: Param = { id: Date.now().toString(), key: newKey, type: 'string', required: isPathParams ? true : false, value: '', desc: '' };
+
+        setter(prev => [...prev, newParam]);
+
+        if (isPathParams && setUrlConfig) {
+            setUrlConfig((prev: any) => ({
+                ...prev,
+                path: prev.path.endsWith('/') ? `${prev.path}:${newKey}` : `${prev.path}/:${newKey}`
+            }));
+        }
+    };
+
+    const updateP = (id: string, f: keyof Param, v: any) => {
+        setter(prev => {
+            const newParams = prev.map(p => p.id === id ? { ...p, [f]: v } : p);
+
+            if (isPathParams && f === 'key' && setUrlConfig) {
+                const oldParam = prev.find(p => p.id === id);
+                if (oldParam) {
+                    const oldKey = oldParam.key;
+                    setUrlConfig((curr: any) => ({
+                        ...curr,
+                        path: curr.path.replace(`/:${oldKey}`, `/:${v}`)
+                    }));
+                }
+            }
+            return newParams;
+        });
+    };
+
+    const removeP = (id: string) => {
+        const paramToRemove = data.find(p => p.id === id);
+        setter(prev => prev.filter(p => p.id !== id));
+
+        if (isPathParams && paramToRemove && setUrlConfig) {
+            setUrlConfig((curr: any) => ({
+                ...curr,
+                path: curr.path.replace(`/:${paramToRemove.key}`, '')
+            }));
+        }
+    };
+
+    return (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium">
+                    <tr>
+                        <th className="p-2 w-1/4">{t.key}</th>
+                        {showType && <th className="p-2 w-24">{t.type}</th>}
+                        <th className="p-2 w-10 text-center">{t.required}</th>
+                        <th className="p-2 w-1/4">{t.example}</th>
+                        <th className="p-2">{t.desc}</th>
+                        <th className="p-2 w-8"></th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {data.map(item => (
+                        <tr key={item.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td className="p-2">
+                                <input type="text" value={item.key} onChange={(e) => updateP(item.id, 'key', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Key" />
+                            </td>
+                            {showType && (
+                                <td className="p-2">
+                                    <select value={item.type} onChange={(e) => updateP(item.id, 'type', e.target.value)} className="w-full bg-transparent outline-none text-nebula-600 dark:text-nebula-400">
+                                        <option value="string">string</option>
+                                        <option value="integer">integer</option>
+                                        <option value="boolean">boolean</option>
+                                        <option value="file">file</option>
+                                    </select>
+                                </td>
+                            )}
+                            <td className="p-2 text-center">
+                                <input type="checkbox" checked={item.required} onChange={(e) => updateP(item.id, 'required', e.target.checked)} className="rounded text-nebula-600 focus:ring-nebula-500" disabled={isPathParams} />
+                            </td>
+                            <td className="p-2">
+                                <input type="text" value={item.value} onChange={(e) => updateP(item.id, 'value', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Value" />
+                            </td>
+                            <td className="p-2">
+                                <input type="text" value={item.desc} onChange={(e) => updateP(item.id, 'desc', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Desc" />
+                            </td>
+                            <td className="p-2 text-center">
+                                <button onClick={() => removeP(item.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                            </td>
+                        </tr>
+                    ))}
+                    <tr>
+                        <td colSpan={6} className="p-2">
+                            <div className="flex gap-4">
+                                <button onClick={addParam} className="flex items-center gap-1 text-gray-400 hover:text-nebula-600 transition-colors text-xs"><Plus size={14} /> {t.addParam}</button>
+                                {onBatchEdit && <button onClick={onBatchEdit} className="flex items-center gap-1 text-gray-400 hover:text-nebula-600 transition-colors text-xs"><Edit3 size={14} /> {t.batchEdit}</button>}
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
 const RequestPanel: React.FC<RequestPanelProps> = ({
     leftWidth,
     activeReqTab,
@@ -158,124 +274,6 @@ const RequestPanel: React.FC<RequestPanelProps> = ({
         setBatchModal({ ...batchModal, isOpen: false });
     };
 
-    // --- Render Param Table ---
-    const renderParamTable = (data: Param[], setter: React.Dispatch<React.SetStateAction<Param[]>>, showType = true) => {
-        let listName = '';
-        if (setter === setQueryParams) listName = 'queryParams';
-        else if (setter === setHeaders) listName = 'headers';
-        else if (setter === setCookies) listName = 'cookies';
-        else if (setter === setFormDataParams) listName = 'formDataParams';
-        else if (setter === setUrlEncodedParams) listName = 'urlEncodedParams';
-        else if (setter === setPathParams) listName = 'pathParams';
-
-        const isPathTable = listName === 'pathParams';
-
-        // Custom handler for adding params
-        const addParam = () => {
-            const newKey = isPathTable ? 'newParam' : '';
-            const newParam: Param = { id: Date.now().toString(), key: newKey, type: 'string', required: isPathTable ? true : false, value: '', desc: '' };
-
-            setter(prev => [...prev, newParam]);
-
-            if (isPathTable) {
-                // Automatically append path param to URL
-                setUrlConfig((prev: any) => ({
-                    ...prev,
-                    path: prev.path.endsWith('/') ? `${prev.path}:${newKey}` : `${prev.path}/:${newKey}`
-                }));
-            }
-        };
-
-        const updateP = (id: string, f: keyof Param, v: any) => {
-            setter(prev => {
-                const newParams = prev.map(p => p.id === id ? { ...p, [f]: v } : p);
-
-                if (isPathTable && f === 'key') {
-                    // Sync URL path when key changes
-                    const oldParam = prev.find(p => p.id === id);
-                    if (oldParam) {
-                        const oldKey = oldParam.key;
-                        // Replace /:oldKey with /:newKey in URL
-                        setUrlConfig((curr: any) => ({
-                            ...curr,
-                            path: curr.path.replace(`/:${oldKey}`, `/:${v}`)
-                        }));
-                    }
-                }
-                return newParams;
-            });
-        };
-
-        const removeP = (id: string) => {
-            const paramToRemove = data.find(p => p.id === id);
-            setter(prev => prev.filter(p => p.id !== id));
-
-            if (isPathTable && paramToRemove) {
-                // Remove param from URL
-                setUrlConfig((curr: any) => ({
-                    ...curr,
-                    path: curr.path.replace(`/:${paramToRemove.key}`, '')
-                }));
-            }
-        };
-
-        return (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-medium">
-                        <tr>
-                            <th className="p-2 w-1/4">{t.key}</th>
-                            {showType && <th className="p-2 w-24">{t.type}</th>}
-                            <th className="p-2 w-10 text-center">{t.required}</th>
-                            <th className="p-2 w-1/4">{t.example}</th>
-                            <th className="p-2">{t.desc}</th>
-                            <th className="p-2 w-8"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {data.map(item => (
-                            <tr key={item.id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                <td className="p-2">
-                                    <input type="text" value={item.key} onChange={(e) => updateP(item.id, 'key', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Key" />
-                                </td>
-                                {showType && (
-                                    <td className="p-2">
-                                        <select value={item.type} onChange={(e) => updateP(item.id, 'type', e.target.value)} className="w-full bg-transparent outline-none text-nebula-600 dark:text-nebula-400">
-                                            <option value="string">string</option>
-                                            <option value="integer">integer</option>
-                                            <option value="boolean">boolean</option>
-                                            <option value="file">file</option>
-                                        </select>
-                                    </td>
-                                )}
-                                <td className="p-2 text-center">
-                                    <input type="checkbox" checked={item.required} onChange={(e) => updateP(item.id, 'required', e.target.checked)} className="rounded text-nebula-600 focus:ring-nebula-500" disabled={isPathTable} />
-                                </td>
-                                <td className="p-2">
-                                    <input type="text" value={item.value} onChange={(e) => updateP(item.id, 'value', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Value" />
-                                </td>
-                                <td className="p-2">
-                                    <input type="text" value={item.desc} onChange={(e) => updateP(item.id, 'desc', e.target.value)} className="w-full bg-transparent outline-none border-b border-transparent focus:border-nebula-500 transition-colors" placeholder="Desc" />
-                                </td>
-                                <td className="p-2 text-center">
-                                    <button onClick={() => removeP(item.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                                </td>
-                            </tr>
-                        ))}
-                        <tr>
-                            <td colSpan={6} className="p-2">
-                                <div className="flex gap-4">
-                                    <button onClick={addParam} className="flex items-center gap-1 text-gray-400 hover:text-nebula-600 transition-colors text-xs"><Plus size={14} /> {t.addParam}</button>
-                                    {listName && <button onClick={() => handleBatchEditOpen(listName, data)} className="flex items-center gap-1 text-gray-400 hover:text-nebula-600 transition-colors text-xs"><Edit3 size={14} /> {t.batchEdit}</button>}
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
-
     return (
         <div
             className="flex flex-col border-gray-200 dark:border-gray-700 min-w-[450px]"
@@ -319,18 +317,20 @@ const RequestPanel: React.FC<RequestPanelProps> = ({
                         <div><label className="block text-xs font-bold text-gray-500 mb-1">{t.basicDesc}</label><textarea value={basicInfo.description} onChange={(e) => setBasicInfo({ ...basicInfo, description: e.target.value })} className="w-full px-3 py-2 border rounded-md dark:border-gray-600 bg-white dark:bg-gray-800 text-sm h-20" /></div>
                         <div>
                             <label className="block text-xs font-bold text-gray-500 mb-1">{t.basicUsage}</label>
-                            <textarea
-                                value={basicInfo.usage}
-                                onChange={(e) => setBasicInfo({ ...basicInfo, usage: e.target.value })}
-                                className="w-full px-3 py-2 border rounded-md dark:border-gray-600 bg-white dark:bg-gray-800 text-sm h-32 focus:ring-2 focus:ring-nebula-500 outline-none"
-                            />
+                            <div className="h-64 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                                <MonacoEditor
+                                    language="markdown"
+                                    value={basicInfo.usage}
+                                    onChange={(v) => setBasicInfo({ ...basicInfo, usage: v || '' })}
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
-                {activeReqTab === 'path' && renderParamTable(pathParams, setPathParams, false)}
-                {activeReqTab === 'params' && renderParamTable(queryParams, setQueryParams)}
-                {activeReqTab === 'headers' && renderParamTable(headers, setHeaders)}
-                {activeReqTab === 'cookies' && renderParamTable(cookies, setCookies)}
+                {activeReqTab === 'path' && <ParamTable data={pathParams} setter={setPathParams} showType={false} t={t} isPathParams={true} setUrlConfig={setUrlConfig} />}
+                {activeReqTab === 'params' && <ParamTable data={queryParams} setter={setQueryParams} t={t} onBatchEdit={() => handleBatchEditOpen('queryParams', queryParams)} />}
+                {activeReqTab === 'headers' && <ParamTable data={headers} setter={setHeaders} t={t} onBatchEdit={() => handleBatchEditOpen('headers', headers)} />}
+                {activeReqTab === 'cookies' && <ParamTable data={cookies} setter={setCookies} t={t} onBatchEdit={() => handleBatchEditOpen('cookies', cookies)} />}
                 {activeReqTab === 'body' && (
                     <div className="flex flex-col h-full">
                         <div className="flex items-center gap-4 mb-4 text-xs overflow-x-auto pb-1 border-b border-gray-100 dark:border-gray-800">
@@ -385,8 +385,8 @@ const RequestPanel: React.FC<RequestPanelProps> = ({
                                     </div>
                                 </div>
                             )}
-                            {bodyType === 'form-data' && renderParamTable(formDataParams, setFormDataParams, true)}
-                            {bodyType === 'x-www-form-urlencoded' && renderParamTable(urlEncodedParams, setUrlEncodedParams, false)}
+                            {bodyType === 'form-data' && <ParamTable data={formDataParams} setter={setFormDataParams} t={t} onBatchEdit={() => handleBatchEditOpen('formDataParams', formDataParams)} />}
+                            {bodyType === 'x-www-form-urlencoded' && <ParamTable data={urlEncodedParams} setter={setUrlEncodedParams} showType={false} t={t} onBatchEdit={() => handleBatchEditOpen('urlEncodedParams', urlEncodedParams)} />}
                         </div>
                     </div>
                 )}

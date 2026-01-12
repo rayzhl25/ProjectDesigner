@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Save } from 'lucide-react';
+import { Play, Save, Code2 } from 'lucide-react';
 
 interface TopToolbarProps {
     method: string;
@@ -15,6 +15,8 @@ interface TopToolbarProps {
     onSend: () => void;
     loading: boolean;
     t: any;
+    showEncapsulation: boolean;
+    setShowEncapsulation: (show: boolean) => void;
 }
 
 const TopToolbar: React.FC<TopToolbarProps> = ({
@@ -25,7 +27,9 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
     handleSave,
     onSend,
     loading,
-    t
+    t,
+    showEncapsulation,
+    setShowEncapsulation
 }) => {
     return (
         <div className="h-14 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between px-4 flex-shrink-0 gap-4">
@@ -77,9 +81,17 @@ const TopToolbar: React.FC<TopToolbarProps> = ({
                 </button>
             </div>
 
-            <button onClick={handleSave} disabled={loading} className="flex items-center gap-1 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium transition-colors shadow-sm disabled:opacity-50 h-9">
-                <Save size={14} /> {loading ? t.saving : t.save}
-            </button>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setShowEncapsulation(!showEncapsulation)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${showEncapsulation ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' : 'bg-white text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600'}`}
+                >
+                    <Code2 size={14} /> {showEncapsulation ? (t.hideEncapsulation || 'Hide Rules') : (t.configEncapsulation || 'Encapsulation Rules')}
+                </button>
+                <button onClick={handleSave} disabled={loading} className="flex items-center gap-1 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium transition-colors shadow-sm disabled:opacity-50 h-9">
+                    <Save size={14} /> {loading ? t.saving : t.save}
+                </button>
+            </div>
         </div>
     );
 };

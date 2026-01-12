@@ -21,6 +21,7 @@ const ApiEditor: React.FC<ApiEditorProps> = ({ file, lang = 'zh' }) => {
     // Layout Resizing (Horizontal Split - Left/Right)
     const [leftWidth, setLeftWidth] = useState(60); // Percentage
     const [isResizingH, setIsResizingH] = useState(false);
+    const [showEncapsulation, setShowEncapsulation] = useState(false);
 
     // Layout Resizing (Vertical Split - Request/Response)
     const [reqPanelHeight, setReqPanelHeight] = useState(60); // Percentage
@@ -458,6 +459,8 @@ function transform(data) {
                 onSend={handleSend}
                 loading={loading}
                 t={t}
+                showEncapsulation={showEncapsulation}
+                setShowEncapsulation={setShowEncapsulation}
             />
 
             <div className="flex-1 flex overflow-hidden relative">
@@ -465,11 +468,11 @@ function transform(data) {
                 <div
                     ref={leftColRef}
                     className="flex flex-col border-r border-gray-200 dark:border-gray-700 min-w-[450px]"
-                    style={{ width: `${leftWidth}%` }}
+                    style={{ width: showEncapsulation ? `${leftWidth}%` : '100%' }}
                 >
                     <div className="flex flex-col w-full relative overflow-hidden" style={{ height: `${reqPanelHeight}%` }}>
                         <RequestPanel
-                            leftWidth={100} // RequestPanel thinks it's full width of its container
+                            leftWidth={100}
                             activeReqTab={activeReqTab}
                             setActiveReqTab={setActiveReqTab}
                             basicInfo={basicInfo}
@@ -520,21 +523,27 @@ function transform(data) {
 
 
                 {/* Horizontal Resizer Handle */}
-                <div
-                    className="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-nebula-500 z-50 transition-colors bg-transparent hover:w-1.5"
-                    style={{ left: `${leftWidth}%` }}
-                    onMouseDown={() => setIsResizingH(true)}
-                ></div>
+                {showEncapsulation && (
+                    <div
+                        className="absolute top-0 bottom-0 w-1 cursor-col-resize hover:bg-nebula-500 z-50 transition-colors bg-transparent hover:w-1.5"
+                        style={{ left: `${leftWidth}%` }}
+                        onMouseDown={() => setIsResizingH(true)}
+                    ></div>
+                )}
 
                 {/* RIGHT COLUMN */}
-                <ResponseEditor
-                    responseConfigs={responseConfigs}
-                    onChange={setResponseConfigs}
-                    isEnabled={isTransformEnabled}
-                    onToggleEnabled={setIsTransformEnabled}
-                    t={t}
-                    nativeData={debugData}
-                />
+                {showEncapsulation && (
+                    <div style={{ width: `${100 - leftWidth}%` }} className="h-full flex flex-col">
+                        <ResponseEditor
+                            responseConfigs={responseConfigs}
+                            onChange={setResponseConfigs}
+                            isEnabled={isTransformEnabled}
+                            onToggleEnabled={setIsTransformEnabled}
+                            t={t}
+                            nativeData={debugData}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Save Confirmation Modal */}

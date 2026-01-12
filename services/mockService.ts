@@ -263,16 +263,131 @@ export const copyNode = async (projectId: string, nodeId: string): Promise<FileS
 
 export const fetchGitChanges = async (): Promise<GitFileStatus[]> => {
     return new Promise((resolve) => setTimeout(() => resolve([
-        { id: 'f1', name: 'src/components/Header.tsx', status: 'modified', leftLines: [], rightLines: [] },
-        { id: 'f2', name: 'src/utils/api.ts', status: 'modified', leftLines: [], rightLines: [] },
-        { id: 'f3', name: 'public/logo.svg', status: 'added', leftLines: [], rightLines: [] }
+        {
+            id: 'f1',
+            name: 'src/components/Header.tsx',
+            status: 'modified',
+            leftLines: [
+                { num: 10, text: '    return (', type: 'normal' },
+                { num: 11, text: '        <header className="bg-gray-100">', type: 'remove' },
+                { num: 12, text: '            <Logo />', type: 'normal' }
+            ],
+            rightLines: [
+                { num: 10, text: '    return (', type: 'normal' },
+                { num: 11, text: '        <header className="bg-white shadow-sm sticky top-0 z-50">', type: 'add' },
+                { num: 12, text: '            <Logo />', type: 'normal' },
+                { num: 13, text: '            <NavMenu />', type: 'add' }
+            ]
+        },
+        {
+            id: 'f2',
+            name: 'src/utils/api.ts',
+            status: 'modified',
+            leftLines: [
+                { num: 45, text: 'export const login = (creds) => {', type: 'normal' },
+                { num: 46, text: '  return axios.post("/login", creds);', type: 'remove' },
+                { num: 47, text: '}', type: 'normal' }
+            ],
+            rightLines: [
+                { num: 45, text: 'export const login = async (creds: Credentials) => {', type: 'add' },
+                { num: 46, text: '  const { data } = await axios.post("/auth/login", creds);', type: 'add' },
+                { num: 47, text: '  localStorage.setItem("token", data.token);', type: 'add' },
+                { num: 48, text: '  return data.user;', type: 'add' },
+                { num: 49, text: '}', type: 'normal' }
+            ]
+        },
+        {
+            id: 'f3',
+            name: 'public/logo.svg',
+            status: 'added',
+            leftLines: [],
+            rightLines: [
+                { num: 1, text: '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">', type: 'add' },
+                { num: 2, text: '  <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />', type: 'add' },
+                { num: 3, text: '</svg>', type: 'add' }
+            ]
+        },
+        {
+            id: 'f4',
+            name: 'src/types/user.ts',
+            status: 'deleted',
+            leftLines: [
+                { num: 1, text: 'export interface User {', type: 'remove' },
+                { num: 2, text: '  id: number;', type: 'remove' },
+                { num: 3, text: '  name: string;', type: 'remove' },
+                { num: 4, text: '}', type: 'remove' }
+            ],
+            rightLines: []
+        },
+        {
+            id: 'f5',
+            name: 'src/styles/globals.css',
+            status: 'modified',
+            leftLines: [
+                { num: 1, text: 'body {', type: 'normal' },
+                { num: 2, text: '  background: #f0f0f0;', type: 'remove' }
+            ],
+            rightLines: [
+                { num: 1, text: 'body {', type: 'normal' },
+                { num: 2, text: '  background: #ffffff;', type: 'add' },
+                { num: 3, text: '  color: #333;', type: 'add' }
+            ]
+        }
     ]), 800));
 };
 
 export const fetchGitHistory = async (): Promise<GitCommit[]> => {
     return new Promise((resolve) => setTimeout(() => resolve([
-        { id: 'c1', message: 'feat: add user login', author: 'Dev1', date: '2023-10-25', branch: 'main', files: [] },
-        { id: 'c2', message: 'fix: button style', author: 'Dev2', date: '2023-10-24', branch: 'main', files: [] }
+        {
+            id: 'c1',
+            message: 'feat: implement user authentication flow',
+            author: 'Dev1',
+            date: '2023-10-27 14:30',
+            branch: 'main',
+            files: [
+                { id: 'h1_1', name: 'src/auth/AuthProvider.tsx', status: 'added', leftLines: [], rightLines: [{ num: 1, text: '...', type: 'add' }] }
+            ]
+        },
+        {
+            id: 'c2',
+            message: 'fix: resolve layout shifting on mobile',
+            author: 'Dev2',
+            date: '2023-10-26 09:15',
+            branch: 'main',
+            files: []
+        },
+        {
+            id: 'c3',
+            message: 'chore: update dependency versions',
+            author: 'Dev1',
+            date: '2023-10-25 18:00',
+            branch: 'develop',
+            files: []
+        },
+        {
+            id: 'c4',
+            message: 'refactor: simplify database connection logic',
+            author: 'Dev3',
+            date: '2023-10-25 11:45',
+            branch: 'develop',
+            files: []
+        },
+        {
+            id: 'c5',
+            message: 'feat: add dark mode support',
+            author: 'Dev2',
+            date: '2023-10-24 16:20',
+            branch: 'feature/dark-mode',
+            files: []
+        },
+        {
+            id: 'c6',
+            message: 'init: project structure setup',
+            author: 'Dev1',
+            date: '2023-10-23 09:00',
+            branch: 'main',
+            files: []
+        }
     ]), 800));
 };
 
