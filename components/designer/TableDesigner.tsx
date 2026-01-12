@@ -190,27 +190,120 @@ const TableDesigner: React.FC<TableDesignerProps> = ({ file, readOnly = false })
          {showInfoModal && (
             <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6">
-                  <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">Table Information</h3>
-                  <div className="space-y-3">
-                     <div className="flex justify-between border-b pb-2 dark:border-gray-700">
-                        <span className="text-gray-500">Name</span>
-                        <span className="font-mono font-medium dark:text-gray-300">{tableMetadata.name}</span>
+                  <h3 className="text-lg font-bold mb-4 text-gray-800 dark:text-gray-200">
+                     {readOnly ? 'Table Information' : 'Edit Table Configuration'}
+                  </h3>
+                  <div className="space-y-4">
+                     {/* Name */}
+                     <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase">Table Name</label>
+                        {readOnly ? (
+                           <div className="font-mono font-medium text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-1">
+                              {tableMetadata.name}
+                           </div>
+                        ) : (
+                           <input
+                              type="text"
+                              value={tableMetadata.name}
+                              onChange={(e) => setTableMetadata({ ...tableMetadata, name: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-nebula-500/50 text-sm"
+                           />
+                        )}
                      </div>
-                     <div className="flex justify-between border-b pb-2 dark:border-gray-700">
-                        <span className="text-gray-500">Engine</span>
-                        <span className="font-mono font-medium dark:text-gray-300">{tableMetadata.engine}</span>
+
+                     {/* Comment */}
+                     <div className="space-y-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase">Comment</label>
+                        {readOnly ? (
+                           <div className="text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700 pb-1">
+                              {tableMetadata.comment || '-'}
+                           </div>
+                        ) : (
+                           <textarea
+                              value={tableMetadata.comment}
+                              onChange={(e) => setTableMetadata({ ...tableMetadata, comment: e.target.value })}
+                              rows={2}
+                              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-nebula-500/50 text-sm resize-none"
+                              placeholder="Table description..."
+                           />
+                        )}
                      </div>
-                     <div className="flex justify-between border-b pb-2 dark:border-gray-700">
-                        <span className="text-gray-500">Charset</span>
-                        <span className="font-mono font-medium dark:text-gray-300">{tableMetadata.charset}</span>
+
+                     <div className="grid grid-cols-2 gap-4">
+                        {/* Engine */}
+                        <div className="space-y-1">
+                           <label className="text-xs font-semibold text-gray-500 uppercase">Engine</label>
+                           {readOnly ? (
+                              <div className="font-mono text-sm text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-1">
+                                 {tableMetadata.engine}
+                              </div>
+                           ) : (
+                              <select
+                                 value={tableMetadata.engine}
+                                 onChange={(e) => setTableMetadata({ ...tableMetadata, engine: e.target.value })}
+                                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-nebula-500/50 text-sm"
+                              >
+                                 <option value="InnoDB">InnoDB</option>
+                                 <option value="MyISAM">MyISAM</option>
+                                 <option value="MEMORY">MEMORY</option>
+                              </select>
+                           )}
+                        </div>
+
+                        {/* Charset */}
+                        <div className="space-y-1">
+                           <label className="text-xs font-semibold text-gray-500 uppercase">Charset</label>
+                           {readOnly ? (
+                              <div className="font-mono text-sm text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-1">
+                                 {tableMetadata.charset}
+                              </div>
+                           ) : (
+                              <select
+                                 value={tableMetadata.charset}
+                                 onChange={(e) => setTableMetadata({ ...tableMetadata, charset: e.target.value })}
+                                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-nebula-500/50 text-sm"
+                              >
+                                 <option value="utf8mb4">utf8mb4</option>
+                                 <option value="utf8">utf8</option>
+                                 <option value="latin1">latin1</option>
+                                 <option value="ascii">ascii</option>
+                              </select>
+                           )}
+                        </div>
                      </div>
-                     <div className="flex justify-between border-b pb-2 dark:border-gray-700">
-                        <span className="text-gray-500">Row Count</span>
-                        <span className="font-mono font-medium dark:text-gray-300">{rows.length}</span>
+
+                     {/* Auto Increment & Stats */}
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                           <label className="text-xs font-semibold text-gray-500 uppercase">Auto Increment</label>
+                           {readOnly ? (
+                              <div className="font-mono text-sm text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-1">
+                                 {tableMetadata.autoIncrement}
+                              </div>
+                           ) : (
+                              <input
+                                 type="number"
+                                 value={tableMetadata.autoIncrement}
+                                 onChange={(e) => setTableMetadata({ ...tableMetadata, autoIncrement: Number(e.target.value) })}
+                                 className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-nebula-500/50 text-sm"
+                              />
+                           )}
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-xs font-semibold text-gray-500 uppercase">Row Count</label>
+                           <div className="font-mono text-sm text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 pb-1">
+                              {rows.length}
+                           </div>
+                        </div>
                      </div>
                   </div>
                   <div className="mt-6 flex justify-end">
-                     <button onClick={() => setShowInfoModal(false)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200">Close</button>
+                     <button
+                        onClick={() => setShowInfoModal(false)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-200 font-medium transition-colors"
+                     >
+                        {readOnly ? 'Close' : 'Done'}
+                     </button>
                   </div>
                </div>
             </div>
